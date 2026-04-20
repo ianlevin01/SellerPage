@@ -1,0 +1,69 @@
+import { Instagram, Facebook, MessageCircle, ExternalLink } from "lucide-react";
+import { useStore } from "../context/StoreContext";
+
+export default function Footer() {
+  const { page } = useStore();
+
+  const wa = page.whatsapp
+    ? `https://wa.me/${page.whatsapp.replace(/\D/g, "")}`
+    : null;
+
+  return (
+    <footer className="footer">
+      <div className="footer__inner">
+        <div className="footer__brand">
+          <div className="footer__logo-mark">
+            {page.store_name?.[0]?.toUpperCase() || "T"}
+          </div>
+          <div>
+            <p className="footer__name">{page.store_name || "Mi tienda"}</p>
+            {page.store_description && (
+              <p className="footer__desc">{page.store_description}</p>
+            )}
+          </div>
+        </div>
+
+        {(page.instagram || page.facebook || wa) && (
+          <div className="footer__social">
+            {wa && (
+              <a href={wa} target="_blank" rel="noreferrer" className="footer__social-link footer__social-link--wa">
+                <MessageCircle size={18} />
+                <span>WhatsApp</span>
+              </a>
+            )}
+            {page.instagram && (
+              <a href={page.instagram} target="_blank" rel="noreferrer" className="footer__social-link">
+                <Instagram size={18} />
+              </a>
+            )}
+            {page.facebook && (
+              <a href={page.facebook} target="_blank" rel="noreferrer" className="footer__social-link">
+                <Facebook size={18} />
+              </a>
+            )}
+          </div>
+        )}
+
+        <p className="footer__powered">
+          Tienda creada con{" "}
+          <a href="https://ventaz.com.ar" target="_blank" rel="noreferrer">
+            Ventaz <ExternalLink size={11} />
+          </a>
+        </p>
+      </div>
+
+      {/* WhatsApp floating button */}
+      {wa && (
+        <a
+          href={wa}
+          target="_blank"
+          rel="noreferrer"
+          className="wa-fab"
+          aria-label="Contactar por WhatsApp"
+        >
+          <MessageCircle size={22} />
+        </a>
+      )}
+    </footer>
+  );
+}
