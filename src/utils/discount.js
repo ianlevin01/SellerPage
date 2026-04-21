@@ -1,115 +1,126 @@
 /**
- * Calcula descuentos progresivos para el carrito.
+ * Descuentos progresivos.
  *
- * discount_type = 'price'    → un descuento fijo sobre todo el carrito según el total
- * discount_type = 'quantity' → descuento por producto según la cantidad de ese producto
+ * El servidor devuelve:
+ *   { enabled_quantity, enabled_price, quantity_tiers, price_tiers }
  *
- * La ganancia mínima del vendedor nunca se puede perforar:
- *   precio_efectivo >= precio_1 * (1 + min_profit_pct / 100)
+ * Reglas:
+ *   - Descuento por cantidad: se aplica por producto según qty de ese producto.
+ *   - Descuento por monto:    se aplica sobre el total del carrito.
+ *   - No se acumulan: si ambos están activos, se aplica el que da mayor ahorro.
+ *   - El precio efectivo nunca baja de precio_1 (el 144% del costo al mayorista).
  */
 
-export function applyDiscount(cartItems, discountConfig) {
-  const noDiscount = {
-    items: cartItems.map(i => ({
-      ...i,
-      effectivePrice: Number(i.precio_venta),
-      savedPerUnit: 0,
-    })),
-    totalSaved: 0,
-    activePct: 0,
-    activeTier: null,
-    nextTier: null,
-    toNextTier: null,
-    subtotal: cartItems.reduce((s, i) => s + Number(i.precio_venta) * i.qty, 0),
-  };
-
-  if (!discountConfig?.enabled || !discountConfig.tiers?.length) return noDiscount;
-
-  const tiers = [...discountConfig.tiers]
+function sortTiers(tiers) {
+  return [...(tiers || [])]
     .map(t => ({ threshold: Number(t.threshold), discount_pct: Number(t.discount_pct) }))
     .sort((a, b) => a.threshold - b.threshold);
+}
 
-  const minPct = Number(discountConfig.min_profit_pct ?? 0);
-  const type   = discountConfig.discount_type;
+function activeTier(tiers, value) {
+  let hit = null;
+  for (const t of tiers) { if (value >= t.threshold) hit = t; else break; }
+  return hit;
+}
 
+function nextTier(tiers, active) {
+  if (!active) return tiers[0] || null;
+  const i = tiers.indexOf(active);
+  return tiers[i + 1] || null;
+}
+
+function floorPrice(item) {
+  // Seller's cost floor = precio_1 (already 144% of wholesale cost)
+  return Number(item.precio_1 ?? 0);
+}
+
+export function applyDiscount(cartItems, discountConfig) {
   const subtotal = cartItems.reduce((s, i) => s + Number(i.precio_venta) * i.qty, 0);
 
-  // ── Por monto del carrito ──────────────────────────────────
-  if (type === "price") {
-    const activeTier = findActiveTier(tiers, subtotal);
-    const nextTier   = findNextTier(tiers, activeTier);
-    const toNextTier = nextTier ? Math.max(0, nextTier.threshold - subtotal) : null;
+  const noDiscount = {
+    items:    cartItems.map(i => ({ ...i, effectivePrice: Number(i.precio_venta), savedPerUnit: 0, itemTier: null })),
+    totalSaved: 0,
+    activePct:  0,
+    activeTier: null,
+    nextTier:   null,
+    toNextTier: null,
+    subtotal,
+    // expose both tiers for DiscountBanner
+    quantity_tiers: sortTiers(discountConfig?.quantity_tiers),
+    price_tiers:    sortTiers(discountConfig?.price_tiers),
+    enabled_quantity: discountConfig?.enabled_quantity ?? false,
+    enabled_price:    discountConfig?.enabled_price    ?? false,
+    activeType: null,
+  };
 
-    if (!activeTier) {
-      return {
-        ...noDiscount,
-        nextTier,
-        toNextTier,
-        subtotal,
-      };
-    }
+  if (!discountConfig) return noDiscount;
 
-    const pct   = activeTier.discount_pct / 100;
-    const items = cartItems.map(i => {
-      const pv       = Number(i.precio_venta);
-      const p1       = Number(i.precio_1 ?? 0);
-      const minPrice = p1 > 0 ? p1 * (1 + minPct / 100) : 0;
-      const raw      = pv * (1 - pct);
-      const effective = Math.max(raw, minPrice);
-      return { ...i, effectivePrice: effective, savedPerUnit: pv - effective };
-    });
+  const { enabled_quantity, enabled_price } = discountConfig;
+  const qTiers = sortTiers(discountConfig.quantity_tiers);
+  const pTiers = sortTiers(discountConfig.price_tiers);
 
-    const totalSaved = items.reduce((s, i) => s + i.savedPerUnit * i.qty, 0);
-    return {
-      items, totalSaved,
-      activePct: activeTier.discount_pct,
-      activeTier, nextTier, toNextTier, subtotal,
-    };
+  // ── Quantity discount ─────────────────────────────────────
+  let qItems = cartItems.map(i => {
+    if (!enabled_quantity || !qTiers.length) return { ...i, effectivePrice: Number(i.precio_venta), savedPerUnit: 0, itemTier: null };
+    const tier = activeTier(qTiers, i.qty);
+    if (!tier) return { ...i, effectivePrice: Number(i.precio_venta), savedPerUnit: 0, itemTier: null };
+    const pv        = Number(i.precio_venta);
+    const floor     = floorPrice(i);
+    const raw       = pv * (1 - tier.discount_pct / 100);
+    const effective = floor > 0 ? Math.max(raw, floor) : raw;
+    return { ...i, effectivePrice: effective, savedPerUnit: pv - effective, itemTier: tier };
+  });
+  const qSaved = qItems.reduce((s, i) => s + i.savedPerUnit * i.qty, 0);
+
+  // ── Price (cart total) discount ───────────────────────────
+  const pActive  = enabled_price && pTiers.length ? activeTier(pTiers, subtotal) : null;
+  const pNext    = enabled_price && pTiers.length ? nextTier(pTiers, pActive)    : null;
+  const toNext   = pNext ? Math.max(0, pNext.threshold - subtotal) : null;
+  let pItems = pActive
+    ? cartItems.map(i => {
+        const pv        = Number(i.precio_venta);
+        const floor     = floorPrice(i);
+        const raw       = pv * (1 - pActive.discount_pct / 100);
+        const effective = floor > 0 ? Math.max(raw, floor) : raw;
+        return { ...i, effectivePrice: effective, savedPerUnit: pv - effective, itemTier: null };
+      })
+    : cartItems.map(i => ({ ...i, effectivePrice: Number(i.precio_venta), savedPerUnit: 0, itemTier: null }));
+  const pSaved = pItems.reduce((s, i) => s + i.savedPerUnit * i.qty, 0);
+
+  // ── Pick the better discount ──────────────────────────────
+  const useQty   = enabled_quantity && qSaved > 0;
+  const usePrice = enabled_price   && pSaved > 0;
+  let finalItems, totalSaved, activeType;
+
+  if (useQty && usePrice) {
+    if (qSaved >= pSaved) { finalItems = qItems; totalSaved = qSaved; activeType = "quantity"; }
+    else                  { finalItems = pItems; totalSaved = pSaved; activeType = "price"; }
+  } else if (useQty) {
+    finalItems = qItems; totalSaved = qSaved; activeType = "quantity";
+  } else if (usePrice) {
+    finalItems = pItems; totalSaved = pSaved; activeType = "price";
+  } else {
+    finalItems = noDiscount.items; totalSaved = 0; activeType = null;
   }
 
-  // ── Por cantidad (por producto) ────────────────────────────
-  const items = cartItems.map(i => {
-    const itemTier = findActiveTier(tiers, i.qty);
-    if (!itemTier) return { ...i, effectivePrice: Number(i.precio_venta), savedPerUnit: 0, itemTier: null };
-
-    const pv        = Number(i.precio_venta);
-    const p1        = Number(i.precio_1 ?? 0);
-    const minPrice  = p1 > 0 ? p1 * (1 + minPct / 100) : 0;
-    const pct       = itemTier.discount_pct / 100;
-    const raw       = pv * (1 - pct);
-    const effective = Math.max(raw, minPrice);
-    return { ...i, effectivePrice: effective, savedPerUnit: pv - effective, itemTier };
-  });
-
-  const totalSaved = items.reduce((s, i) => s + i.savedPerUnit * i.qty, 0);
   return {
-    items, totalSaved,
-    activePct: null,
-    activeTier: null, nextTier: null, toNextTier: null,
-    subtotal, tiers,
+    items: finalItems,
+    totalSaved,
+    activePct:  pActive?.discount_pct ?? null,
+    activeTier: activeType === "price" ? pActive : null,
+    nextTier:   activeType === "price" ? pNext : (enabled_price && pTiers.length ? nextTier(pTiers, null) : null),
+    toNextTier: toNext,
+    subtotal,
+    quantity_tiers: qTiers,
+    price_tiers:    pTiers,
+    enabled_quantity,
+    enabled_price,
+    activeType,
   };
 }
 
-function findActiveTier(tiers, value) {
-  let active = null;
-  for (const t of tiers) {
-    if (value >= t.threshold) active = t;
-    else break;
-  }
-  return active;
-}
-
-function findNextTier(tiers, active) {
-  if (!active) return tiers[0] || null;
-  const idx = tiers.indexOf(active);
-  return tiers[idx + 1] || null;
-}
-
-/** Calcula el total final del carrito ya con descuentos aplicados. */
 export function cartFinalTotal(discountResult) {
-  return discountResult.items.reduce(
-    (s, i) => s + i.effectivePrice * i.qty, 0
-  );
+  return discountResult.items.reduce((s, i) => s + i.effectivePrice * i.qty, 0);
 }
 
 export function fmt(n) {

@@ -31,14 +31,24 @@ export default function App() {
     client.get(`/seller/store/public/${slug}`)
       .then(res => {
         setStoreData(res.data);
-        const color = res.data.page?.banner_color || "#4db81a";
-        document.title = res.data.page?.store_name || "Tienda";
-        // Inyectar variables CSS globales basadas en el color del vendedor
+        const pg    = res.data.page || {};
+        const color = pg.banner_color || "#4db81a";
+        document.title = pg.store_name || "Tienda";
         const root = document.documentElement;
         root.style.setProperty("--brand",       color);
         root.style.setProperty("--brand-dark",  darkenHex(color, 30));
         root.style.setProperty("--brand-light", lightenHex(color, 170));
         root.style.setProperty("--brand-rgb",   hexToRgb(color));
+        if (pg.color_secondary) root.style.setProperty("--brand-secondary", pg.color_secondary);
+        if (pg.color_bg)        root.style.setProperty("--store-bg",         pg.color_bg);
+        if (pg.color_text)      root.style.setProperty("--store-text",        pg.color_text);
+        if (pg.font_family) {
+          const link = document.createElement("link");
+          link.rel  = "stylesheet";
+          link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(pg.font_family)}:wght@400;500;600;700&display=swap`;
+          document.head.appendChild(link);
+          root.style.setProperty("--font-body", `'${pg.font_family}', sans-serif`);
+        }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));

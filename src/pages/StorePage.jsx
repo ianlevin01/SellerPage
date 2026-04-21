@@ -12,13 +12,19 @@ export default function StorePage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
+  const featuredCats = page.featured_categories;
+  const baseProducts = useMemo(() => {
+    if (!featuredCats?.length) return products;
+    return products.filter(p => featuredCats.includes(p.category_id));
+  }, [products, featuredCats]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return products.filter(p =>
+    return baseProducts.filter(p =>
       (p.custom_name || p.name).toLowerCase().includes(q) ||
       (p.code || "").toLowerCase().includes(q)
     );
-  }, [products, search]);
+  }, [baseProducts, search]);
 
   return (
     <div className="store-root">

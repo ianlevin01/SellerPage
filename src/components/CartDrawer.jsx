@@ -97,7 +97,7 @@ export default function CartDrawer({
             hasDiscount={hasDiscount}
             activeTier={activeTier}
             activePct={activePct}
-            discount={discount}
+            activeType={discountResult.activeType}
             color={color}
             onUpdateQty={onUpdateQty}
             onRemove={onRemove}
@@ -123,8 +123,8 @@ export default function CartDrawer({
   );
 }
 
-function CartStep({ items, subtotal, totalSaved, finalTotal, hasDiscount, activeTier, activePct, discount, color, onUpdateQty, onRemove, onCheckout }) {
-  const isQty = discount?.discount_type === "quantity";
+function CartStep({ items, subtotal, totalSaved, finalTotal, hasDiscount, activeTier, activePct, activeType, color, onUpdateQty, onRemove, onCheckout }) {
+  const isQty = activeType === "quantity";
 
   return (
     <>

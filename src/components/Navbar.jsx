@@ -11,9 +11,13 @@ export default function Navbar() {
       <div className="navbar__inner">
         {/* Logo / Store name */}
         <button className="navbar__brand" onClick={() => navigate("/")}>
-          <div className="navbar__logo-mark">
-            {page.store_name?.[0]?.toUpperCase() || <Store size={14} />}
-          </div>
+          {page.logo_url ? (
+            <img src={page.logo_url} alt={page.store_name || "Logo"} className="navbar__logo-img" />
+          ) : (
+            <div className="navbar__logo-mark">
+              {page.store_name?.[0]?.toUpperCase() || <Store size={14} />}
+            </div>
+          )}
           <span className="navbar__store-name">
             {page.store_name || "Mi tienda"}
           </span>
