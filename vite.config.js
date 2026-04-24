@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
+    allowedHosts: true,
     proxy: {
       "/seller": { target: "http://localhost:3000", changeOrigin: true },
       "/store":  { target: "http://localhost:3000", changeOrigin: true },

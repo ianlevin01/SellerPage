@@ -8,16 +8,25 @@ import ProductPage  from "./pages/ProductPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import NotFound     from "./pages/NotFound";
 import ChatWidget   from "./components/ChatWidget";
+import PaymentResult from "./components/PaymentResult";
 
 function detectSlug() {
   const h = window.location.hostname;
   if (h !== "localhost" && !/^\d+\.\d+\.\d+\.\d+$/.test(h)) {
     const parts = h.split(".");
-    if (parts.length >= 3) return parts[0];
+    if (parts.length >= 3) {
+      const s = parts[0];
+      sessionStorage.setItem("storeSlug", s);
+      return s;
+    }
   }
   const p = new URLSearchParams(window.location.search);
-  if (p.get("shop")) return p.get("shop");
-  return import.meta.env.VITE_STORE_SLUG || null;
+  if (p.get("shop")) {
+    sessionStorage.setItem("storeSlug", p.get("shop"));
+    return p.get("shop");
+  }
+  if (import.meta.env.VITE_STORE_SLUG) return import.meta.env.VITE_STORE_SLUG;
+  return sessionStorage.getItem("storeSlug") || null;
 }
 
 export default function App() {
@@ -25,6 +34,25 @@ export default function App() {
   const [storeData, setStoreData] = useState(null);
   const [loading, setLoading]     = useState(true);
   const [notFound, setNotFound]   = useState(false);
+  const [paymentResult, setPaymentResult] = useState(null); // { status, payment_id }
+
+  // Detecta retorno desde el checkout de MercadoPago
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentId = params.get("payment_id");
+    if (!paymentId || !slug) return;
+
+    client.get(`/seller/purchase/confirm?payment_id=${paymentId}`)
+      .then(res => setPaymentResult(res.data))
+      .catch(() => setPaymentResult({ status: "error" }))
+      .finally(() => {
+        // Limpia los params de MP de la URL sin recargar la página
+        const clean = new URLSearchParams(window.location.search);
+        ["payment_id","status","merchant_order_id","preference_id","collection_id","collection_status","external_reference"].forEach(k => clean.delete(k));
+        const next = clean.toString() ? `?${clean}` : window.location.pathname;
+        window.history.replaceState({}, "", next);
+      });
+  }, [slug]);
 
   useEffect(() => {
     if (!slug) { setNotFound(true); setLoading(false); return; }
@@ -63,6 +91,9 @@ export default function App() {
 
   return (
     <StoreProvider storeData={storeData}>
+      {paymentResult && (
+        <PaymentResult result={paymentResult} onClose={() => setPaymentResult(null)} />
+      )}
       <BrowserRouter>
         <Routes>
           <Route path="/"               element={<StorePage   slug={slug} />} />

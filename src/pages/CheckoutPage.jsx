@@ -11,30 +11,62 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 const STEPS = [
-  { id: 1, label: "Carrito",  icon: ShoppingBag },
-  { id: 2, label: "Tus datos", icon: User       },
-  { id: 3, label: "Pago",      icon: CreditCard  },
+  { id: 1, label: "Carrito",    icon: ShoppingBag },
+  { id: 2, label: "Tus datos",  icon: User        },
+  { id: 3, label: "Pago",       icon: CreditCard  },
 ];
 
 const EMPTY_CUSTOMER = { name: "", email: "", phone: "", city: "", notes: "" };
 
+// ─── Helpers de diagnóstico ───────────────────────────────────────────────────
+//
+// Estos mensajes aparecen en pantalla Y en consola para que puedas rastrear
+// exactamente dónde rompió sin tener que adivinar.
+//
+function diagnoseMPResponse(data) {
+  // MercadoPago puede devolver el link con distintos nombres según cómo
+  // lo construya el backend. Probamos todos los candidatos conocidos.
+  const candidates = [
+    "checkout_url",       // nombre custom que usa tu backend
+    "init_point",         // nombre nativo de MP (producción)
+    "sandbox_init_point", // nombre nativo de MP (sandbox / pruebas)
+    "url",                // algunos wrappers lo llaman así
+  ];
+
+  for (const key of candidates) {
+    if (data[key] && typeof data[key] === "string" && data[key].startsWith("http")) {
+      console.info(`[Checkout] ✅ URL de pago encontrada en campo "${key}":`, data[key]);
+      return data[key];
+    }
+  }
+
+  // Si no encontró nada útil, logueamos todo para diagnóstico
+  console.error(
+    "[Checkout] ❌ La API no devolvió ninguna URL de pago reconocida.\n" +
+    "Campos que llegaron:", Object.keys(data), "\n" +
+    "Respuesta completa:", data
+  );
+  return null;
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 export default function CheckoutPage({ slug }) {
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const {
     cart, discountResult, finalTotal, totalSaved,
-    updateQty, removeFromCart, clearCart, page,
+    updateQty, removeFromCart, clearCart,
   } = useStore();
 
   const [step, setStep]         = useState(1);
   const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
   const [errors, setErrors]     = useState({});
   const [sending, setSending]   = useState(false);
-  const [success, setSuccess]   = useState(null); // { numero, checkout_url }
+  const [success, setSuccess]   = useState(null);
 
-  const subtotal  = discountResult.subtotal ?? 0;
-  const hasDisc   = totalSaved > 0.01;
+  const subtotal = discountResult.subtotal ?? 0;
+  const hasDisc  = totalSaved > 0.01;
 
-  // ── Validation ────────────────────────────────────────────
+  // ── Validación step 2 ──────────────────────────────────────────────────────
   function validateStep2() {
     const e = {};
     if (!customer.name.trim())  e.name  = "Ingresá tu nombre";
@@ -45,11 +77,17 @@ export default function CheckoutPage({ slug }) {
     return Object.keys(e).length === 0;
   }
 
-  // ── Submit order ─────────────────────────────────────────
+  // ── Submit del pedido ──────────────────────────────────────────────────────
   async function submitOrder() {
     setSending(true);
+    setErrors({});
+
+    let res;
+
+    // 1️⃣ Llamada a la API
     try {
-      const res = await client.post(`/seller/store/public/${slug}/checkout`, {
+      console.info("[Checkout] Enviando pedido a la API…");
+      res = await client.post(`/seller/purchase/public/${slug}/checkout`, {
         customer,
         items: discountResult.items.map(i => ({
           product_id: i.id,
@@ -59,24 +97,75 @@ export default function CheckoutPage({ slug }) {
         })),
         total: finalTotal,
       });
+      console.info("[Checkout] Respuesta de la API:", res.data);
+    } catch (err) {
+      // La API devolvió un error HTTP (4xx / 5xx) o no hubo conexión
+      const status  = err.response?.status;
+      const msg     = err.response?.data?.message || err.response?.data?.error;
+      const isNetwork = !err.response;
 
-      clearCart();
+      console.error("[Checkout] ❌ Error al llamar a la API:", {
+        status,
+        data: err.response?.data,
+        message: err.message,
+      });
 
-      // Si el backend devuelve una URL de LemonSqueezy, redirigir allí
-      if (res.data.checkout_url) {
-        window.location.href = res.data.checkout_url;
-        return;
+      let userMsg;
+      if (isNetwork) {
+        userMsg = "No se pudo conectar al servidor. Verificá tu conexión.";
+      } else if (status === 401 || status === 403) {
+        userMsg = `Error de autenticación (${status}). La tienda no tiene permisos para cobrar.`;
+      } else if (status === 422) {
+        userMsg = msg || "Datos del pedido inválidos. Revisá el carrito e intentá de nuevo.";
+      } else if (status >= 500) {
+        userMsg = `Error del servidor (${status}). Intentá de nuevo en unos segundos.`;
+      } else {
+        userMsg = msg || `Error inesperado (${status ?? "sin respuesta"}). Revisá la consola para más detalles.`;
       }
 
-      setSuccess(res.data);
-    } catch (err) {
-      setErrors({ submit: err.response?.data?.message || "Error al procesar el pedido. Intentá de nuevo." });
-    } finally {
+      setErrors({ submit: userMsg });
       setSending(false);
+      return;
     }
+
+    // 2️⃣ Buscar la URL de pago en la respuesta
+    const payUrl = diagnoseMPResponse(res.data);
+
+    if (payUrl) {
+      // ✅ Redireccionamos directamente: es el método más confiable y compatible.
+      // El modal embebido de MP requiere configuración extra en el backend
+      // (preference con purpose:"wallet_purchase") y el SDK cargado como script externo.
+      // La redirección funciona siempre, con cualquier tipo de preference.
+      console.info("[Checkout] Redirigiendo a MercadoPago…");
+      window.location.href = payUrl;
+      // No llamamos setSending(false) porque la página va a cambiar
+      return;
+    }
+
+    // 3️⃣ No había URL → pedido manual / contra entrega
+    if (res.data.order_number || res.data.numero) {
+      console.info("[Checkout] Pedido sin pago online creado:", res.data);
+      clearCart();
+      setSuccess(res.data);
+      setSending(false);
+      return;
+    }
+
+    // 4️⃣ La API respondió 200 pero sin datos reconocibles
+    console.error(
+      "[Checkout] ❌ La API respondió OK pero sin URL de pago ni número de orden.\n" +
+      "Revisá que el endpoint devuelva `checkout_url` (o `init_point`) y/o `order_number`.\n" +
+      "Respuesta completa:", res.data
+    );
+    setErrors({
+      submit:
+        "La tienda procesó el pedido pero no devolvió información de pago. " +
+        "Revisá la consola (F12) y contactá al administrador.",
+    });
+    setSending(false);
   }
 
-  // ── Success screen ────────────────────────────────────────
+  // ── Pantalla de éxito (pedidos sin pago online) ────────────────────────────
   if (success) {
     return (
       <div className="store-root">
@@ -104,6 +193,7 @@ export default function CheckoutPage({ slug }) {
     );
   }
 
+  // ── Render principal ───────────────────────────────────────────────────────
   return (
     <div className="store-root">
       <Navbar />
@@ -111,8 +201,12 @@ export default function CheckoutPage({ slug }) {
       <main className="checkout-page">
         {/* Header */}
         <div className="checkout-page__header">
-          <button className="breadcrumb__back" onClick={() => step > 1 ? setStep(s => s - 1) : navigate("/")}>
-            <ArrowLeft size={15} /> {step > 1 ? "Volver" : "Seguir comprando"}
+          <button
+            className="breadcrumb__back"
+            onClick={() => step > 1 ? setStep(s => s - 1) : navigate("/")}
+          >
+            <ArrowLeft size={15} />
+            {step > 1 ? "Volver" : "Seguir comprando"}
           </button>
           <h1 className="checkout-page__title">Checkout</h1>
         </div>
@@ -125,9 +219,9 @@ export default function CheckoutPage({ slug }) {
                 <div className={`checkout-steps__line ${step > i ? "checkout-steps__line--done" : ""}`} />
               )}
               <div className={`checkout-steps__dot
-                ${step === s.id ? "checkout-steps__dot--active" : ""}
-                ${step > s.id  ? "checkout-steps__dot--done"   : ""}
-                ${step < s.id  ? "checkout-steps__dot--pending" : ""}
+                ${step === s.id ? "checkout-steps__dot--active"  : ""}
+                ${step >  s.id  ? "checkout-steps__dot--done"    : ""}
+                ${step <  s.id  ? "checkout-steps__dot--pending" : ""}
               `}>
                 {step > s.id ? <Check size={14} /> : <s.icon size={14} />}
               </div>
@@ -139,22 +233,25 @@ export default function CheckoutPage({ slug }) {
         </div>
 
         <div className="checkout-body">
-          {/* ── Step 1: Cart ─────────────────────────────── */}
+
+          {/* ── Step 1: Carrito ──────────────────────────────────────────── */}
           {step === 1 && (
             <div className="checkout-step" key="cart">
               {cart.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-state__icon">🛒</div>
                   <h3>Tu carrito está vacío</h3>
-                  <button className="btn-ghost" onClick={() => navigate("/")}>Ver productos</button>
+                  <button className="btn-ghost" onClick={() => navigate("/")}>
+                    Ver productos
+                  </button>
                 </div>
               ) : (
                 <>
                   <div className="cart-items">
                     {discountResult.items.map(item => {
-                      const base  = Number(item.precio_venta);
-                      const eff   = item.effectivePrice;
-                      const saved = item.savedPerUnit ?? 0;
+                      const base   = Number(item.precio_venta);
+                      const eff    = item.effectivePrice;
+                      const saved  = item.savedPerUnit ?? 0;
                       const hasDsc = saved > 0.01;
                       return (
                         <div key={item.id} className="cart-item">
@@ -167,12 +264,15 @@ export default function CheckoutPage({ slug }) {
                           <div className="cart-item__info">
                             <p className="cart-item__name">{item.custom_name || item.name}</p>
                             <div className="cart-item__price-row">
-                              {hasDsc
-                                ? <><s className="cart-item__orig">${fmt(base)}</s>
-                                    <span className="cart-item__price">${fmt(eff)}</span>
-                                    <span className="cart-item__save">−${fmt(saved)}</span></>
-                                : <span className="cart-item__price">${fmt(base)}</span>
-                              }
+                              {hasDsc ? (
+                                <>
+                                  <s className="cart-item__orig">${fmt(base)}</s>
+                                  <span className="cart-item__price">${fmt(eff)}</span>
+                                  <span className="cart-item__save">−${fmt(saved)}</span>
+                                </>
+                              ) : (
+                                <span className="cart-item__price">${fmt(base)}</span>
+                              )}
                             </div>
                           </div>
                           <div className="cart-item__qty">
@@ -218,17 +318,17 @@ export default function CheckoutPage({ slug }) {
             </div>
           )}
 
-          {/* ── Step 2: Customer info ─────────────────────── */}
+          {/* ── Step 2: Datos del cliente ────────────────────────────────── */}
           {step === 2 && (
             <div className="checkout-step" key="info">
               <h2 className="checkout-step__title">Tus datos de contacto</h2>
 
               <div className="checkout-form">
                 {[
-                  { key: "name",  label: "Nombre y apellido *", type: "text",  ph: "Juan García" },
-                  { key: "email", label: "Email *",             type: "email", ph: "juan@email.com" },
-                  { key: "phone", label: "Teléfono / WhatsApp *", type: "tel", ph: "+54 11 1234-5678" },
-                  { key: "city",  label: "Ciudad",              type: "text",  ph: "Buenos Aires" },
+                  { key: "name",  label: "Nombre y apellido *",    type: "text",  ph: "Juan García"        },
+                  { key: "email", label: "Email *",                 type: "email", ph: "juan@email.com"     },
+                  { key: "phone", label: "Teléfono / WhatsApp *",   type: "tel",   ph: "+54 11 1234-5678"   },
+                  { key: "city",  label: "Ciudad",                  type: "text",  ph: "Buenos Aires"       },
                 ].map(({ key, label, type, ph }) => (
                   <div key={key} className={`form-field ${errors[key] ? "form-field--error" : ""}`}>
                     <label className="form-label">{label}</label>
@@ -239,7 +339,7 @@ export default function CheckoutPage({ slug }) {
                       value={customer[key]}
                       onChange={e => {
                         setCustomer(p => ({ ...p, [key]: e.target.value }));
-                        if (errors[key]) setErrors(e2 => ({ ...e2, [key]: "" }));
+                        if (errors[key]) setErrors(prev => ({ ...prev, [key]: "" }));
                       }}
                     />
                     {errors[key] && <span className="form-error">{errors[key]}</span>}
@@ -267,12 +367,12 @@ export default function CheckoutPage({ slug }) {
             </div>
           )}
 
-          {/* ── Step 3: Payment summary ───────────────────── */}
+          {/* ── Step 3: Resumen y pago ───────────────────────────────────── */}
           {step === 3 && (
             <div className="checkout-step" key="pay">
               <h2 className="checkout-step__title">Resumen y pago</h2>
 
-              {/* Customer summary */}
+              {/* Datos del cliente */}
               <div className="pay-summary-card">
                 <div className="pay-summary-card__row">
                   <User size={14} />
@@ -294,19 +394,21 @@ export default function CheckoutPage({ slug }) {
                 )}
               </div>
 
-              {/* Items summary */}
+              {/* Items */}
               <div className="pay-items">
                 {discountResult.items.map(item => (
                   <div key={item.id} className="pay-item">
                     <span className="pay-item__name">
                       {item.custom_name || item.name} × {item.qty}
                     </span>
-                    <span className="pay-item__total">${fmt(item.effectivePrice * item.qty)}</span>
+                    <span className="pay-item__total">
+                      ${fmt(item.effectivePrice * item.qty)}
+                    </span>
                   </div>
                 ))}
               </div>
 
-              {/* Totals */}
+              {/* Totales */}
               <div className="pay-totals">
                 {hasDisc && (
                   <div className="pay-totals__row pay-totals__row--disc">
@@ -320,11 +422,25 @@ export default function CheckoutPage({ slug }) {
                 </div>
               </div>
 
+              {/* Error con diagnóstico visible */}
               {errors.submit && (
-                <p className="form-error" style={{ marginBottom: 16 }}>{errors.submit}</p>
+                <div className="form-error-box" style={{
+                  background: "#fff0f0",
+                  border: "1px solid #ffb3b3",
+                  borderRadius: 8,
+                  padding: "12px 16px",
+                  marginBottom: 16,
+                  fontSize: 14,
+                  color: "#c00",
+                }}>
+                  <strong>⚠️ {errors.submit}</strong>
+                  <p style={{ margin: "6px 0 0", color: "#666", fontSize: 12 }}>
+                    Abrí la consola del navegador (F12 → Console) para ver el detalle técnico completo.
+                  </p>
+                </div>
               )}
 
-              {/* Pay button */}
+              {/* Botón de pago */}
               <button
                 className={`btn-pay ${sending ? "btn-pay--loading" : ""}`}
                 onClick={submitOrder}
@@ -338,12 +454,12 @@ export default function CheckoutPage({ slug }) {
               </button>
 
               <p className="pay-note">
-                Al confirmar serás redirigido al procesador de pagos seguro.
+                Al confirmar serás redirigido al procesador de pagos seguro de MercadoPago.
               </p>
             </div>
           )}
 
-          {/* ── Order summary sidebar (steps 2 y 3) ──────── */}
+          {/* ── Sidebar resumen (steps 2 y 3) ───────────────────────────── */}
           {step > 1 && (
             <aside className="checkout-aside">
               <h3 className="checkout-aside__title">Tu pedido</h3>
@@ -367,6 +483,7 @@ export default function CheckoutPage({ slug }) {
               </div>
             </aside>
           )}
+
         </div>
       </main>
 
