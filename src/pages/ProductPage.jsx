@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Minus, ShoppingCart, Zap, Tag, Check, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Minus, ShoppingCart, Zap, Tag, Check, ChevronRight, TrendingDown } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
 import Navbar  from "../components/Navbar";
@@ -37,10 +37,12 @@ export default function ProductPage() {
   const hasDisc   = savedUnit > 0.01;
   const discPct   = hasDisc ? Math.round((savedUnit / basePrice) * 100) : 0;
 
-  const isQty   = discount?.discount_type === "quantity" && discount?.enabled;
-  const tiers   = isQty
-    ? [...(discount.tiers || [])].sort((a, b) => Number(a.threshold) - Number(b.threshold))
-    : [];
+  const hasQty   = discount?.enabled_quantity && (discount?.quantity_tiers?.length ?? 0) > 0;
+  const hasPrice = discount?.enabled_price    && (discount?.price_tiers?.length ?? 0) > 0;
+  const qTiers   = hasQty   ? [...discount.quantity_tiers].sort((a, b) => a.threshold - b.threshold) : [];
+  const pTiers   = hasPrice ? [...discount.price_tiers].sort((a, b) => a.threshold - b.threshold)    : [];
+  const cartQty  = cartItem?.qty ?? 0;
+  const subtotal = discountResult.subtotal ?? 0;
 
   function handleAdd() {
     addToCart(product);
@@ -116,23 +118,53 @@ export default function ProductPage() {
               )}
             </div>
 
-            {/* Quantity-mode discount tiers */}
-            {isQty && tiers.length > 0 && (
-              <div className="product-details__disc-tiers">
-                <p className="product-details__disc-title">
-                  <Tag size={13} /> Descuentos por cantidad
-                </p>
-                <div className="product-details__disc-list">
-                  {tiers.map((t, i) => {
-                    const active = (cartItem?.qty ?? 0) >= Number(t.threshold);
-                    return (
-                      <div key={i} className={`pdtier ${active ? "pdtier--active" : ""}`}>
-                        {active && <Check size={12} />}
-                        <strong>{t.discount_pct}%</strong> desde {t.threshold} unidades
-                      </div>
-                    );
-                  })}
-                </div>
+            {/* Discount tiers */}
+            {(hasQty || hasPrice) && (
+              <div className="pd-disc-block">
+                {hasQty && (
+                  <div className="pd-disc-section">
+                    <div className="pd-disc-header"><Tag size={12} /> Descuentos por cantidad</div>
+                    <div className="pd-disc-tiers">
+                      {qTiers.map((t, i) => {
+                        const reached = cartQty >= Number(t.threshold);
+                        return (
+                          <div key={i} className={`pd-tier ${reached ? "pd-tier--on" : ""}`}>
+                            {reached && <Check size={10} className="pd-tier__check" />}
+                            <span className="pd-tier__pct">{t.discount_pct}%</span>
+                            <span className="pd-tier__off">OFF</span>
+                            <span className="pd-tier__label">{t.threshold}+ u.</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {cartQty > 0 && (() => {
+                      const next = qTiers.find(t => Number(t.threshold) > cartQty);
+                      return next ? (
+                        <p className="pd-disc-hint">
+                          <Zap size={11} /> Agregá <strong>{Number(next.threshold) - cartQty}</strong> más → {next.discount_pct}% OFF
+                        </p>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+                {hasPrice && (
+                  <div className="pd-disc-section">
+                    <div className="pd-disc-header"><TrendingDown size={12} /> Descuentos por monto</div>
+                    <div className="pd-disc-tiers">
+                      {pTiers.map((t, i) => {
+                        const reached = subtotal >= Number(t.threshold);
+                        return (
+                          <div key={i} className={`pd-tier ${reached ? "pd-tier--on" : ""}`}>
+                            {reached && <Check size={10} className="pd-tier__check" />}
+                            <span className="pd-tier__pct">{t.discount_pct}%</span>
+                            <span className="pd-tier__off">OFF</span>
+                            <span className="pd-tier__label">desde ${fmt(t.threshold)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -140,7 +172,11 @@ export default function ProductPage() {
             {desc && (
               <div className="product-details__desc">
                 <h3>Descripción</h3>
-                <p>{desc}</p>
+                {desc.startsWith("<") ? (
+                  <div className="product-desc-html" dangerouslySetInnerHTML={{ __html: desc }} />
+                ) : (
+                  <p>{desc}</p>
+                )}
               </div>
             )}
 

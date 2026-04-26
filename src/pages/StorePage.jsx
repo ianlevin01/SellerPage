@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, X, ChevronRight } from "lucide-react";
+import { Search, X, ChevronRight, ShieldCheck, Truck, MessageCircle } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import Navbar          from "../components/Navbar";
 import Footer          from "../components/Footer";
@@ -10,7 +10,8 @@ import DiscountBanner  from "../components/DiscountBanner";
 export default function StorePage() {
   const { page, products } = useStore();
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
+  const [search, setSearch]     = useState("");
+  const [catFilter, setCatFilter] = useState(null);
 
   const featuredCats = page.featured_categories;
   const baseProducts = useMemo(() => {
@@ -18,13 +19,25 @@ export default function StorePage() {
     return products.filter(p => featuredCats.includes(p.category_id));
   }, [products, featuredCats]);
 
+  const categories = useMemo(() => {
+    const seen = new Map();
+    for (const p of baseProducts) {
+      if (p.category_id && p.category_name && !seen.has(p.category_id)) {
+        seen.set(p.category_id, p.category_name);
+      }
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  }, [baseProducts]);
+
   const filtered = useMemo(() => {
+    let list = catFilter ? baseProducts.filter(p => p.category_id === catFilter) : baseProducts;
     const q = search.toLowerCase();
-    return baseProducts.filter(p =>
+    if (q) list = list.filter(p =>
       (p.custom_name || p.name).toLowerCase().includes(q) ||
       (p.code || "").toLowerCase().includes(q)
     );
-  }, [baseProducts, search]);
+    return list;
+  }, [baseProducts, search, catFilter]);
 
   return (
     <div className="store-root">
@@ -49,6 +62,14 @@ export default function StorePage() {
             >
               Ver productos <ChevronRight size={16} />
             </button>
+
+            <div className="hero__trust">
+              <span className="hero__trust-item"><ShieldCheck size={13} /> Pago seguro</span>
+              <span className="hero__trust-sep">·</span>
+              <span className="hero__trust-item"><Truck size={13} /> Envíos a todo el país</span>
+              <span className="hero__trust-sep">·</span>
+              <span className="hero__trust-item"><MessageCircle size={13} /> Atención personalizada</span>
+            </div>
           </div>
         </div>
         <div className="hero__wave">
@@ -86,12 +107,32 @@ export default function StorePage() {
         <section className="products-section">
           <div className="products-header">
             <h2 className="products-header__title">
-              {search ? `Resultados para "${search}"` : "Todos los productos"}
+              {search ? `Resultados para "${search}"` : catFilter ? categories.find(c => c.id === catFilter)?.name || "Productos" : "Todos los productos"}
             </h2>
             <span className="products-header__count">
               {filtered.length} {filtered.length === 1 ? "producto" : "productos"}
             </span>
           </div>
+
+          {categories.length > 1 && (
+            <div className="cat-pills">
+              <button
+                className={`cat-pill${catFilter === null ? " cat-pill--active" : ""}`}
+                onClick={() => setCatFilter(null)}
+              >
+                Todos
+              </button>
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  className={`cat-pill${catFilter === cat.id ? " cat-pill--active" : ""}`}
+                  onClick={() => { setCatFilter(cat.id); setSearch(""); }}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          )}
 
           {filtered.length === 0 ? (
             <div className="empty-state">
