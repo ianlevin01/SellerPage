@@ -70,6 +70,8 @@ export default function App() {
         if (pg.color_secondary) root.style.setProperty("--brand-secondary", pg.color_secondary);
         if (pg.color_bg)        root.style.setProperty("--store-bg",         pg.color_bg);
         if (pg.color_text)      root.style.setProperty("--store-text",        pg.color_text);
+        root.style.setProperty("--card-radius", `${pg.card_border_radius ?? 16}px`);
+        root.style.setProperty("--card-shadow", pg.card_show_shadow !== false ? "var(--shadow-sm)" : "none");
         if (pg.font_family) {
           const link = document.createElement("link");
           link.rel  = "stylesheet";

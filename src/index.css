@@ -387,9 +387,10 @@ a { color: var(--brand); text-decoration: none; }
 /* ── Product card ───────────────────────────────────────────── */
 .pcard {
   background: var(--surface);
-  border-radius: var(--radius-lg);
+  border-radius: var(--card-radius, var(--radius-lg));
   overflow: hidden;
   border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow, var(--shadow-sm));
   cursor: pointer;
   transition: transform .3s var(--ease), box-shadow .3s var(--ease), border-color .3s var(--ease);
   animation: fadeUp .4s var(--ease) both;
