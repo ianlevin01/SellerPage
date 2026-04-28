@@ -1,10 +1,33 @@
-import { createContext, useContext, useState, useMemo } from "react";
+import { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { applyDiscount, cartFinalTotal } from "../utils/discount";
 
 const StoreContext = createContext(null);
 
+function cartKey(slug) { return `cart_${slug}`; }
+
+function loadCart(slug, products) {
+  try {
+    const raw = localStorage.getItem(cartKey(slug));
+    if (!raw) return [];
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return [];
+    // Merge saved quantities with current product data (prices may have changed)
+    const productMap = Object.fromEntries(products.map(p => [p.id, p]));
+    return saved
+      .filter(i => productMap[i.id])
+      .map(i => ({ ...productMap[i.id], qty: i.qty }));
+  } catch { return []; }
+}
+
 export function StoreProvider({ storeData, children }) {
-  const [cart, setCart] = useState([]);
+  const slug = storeData.page?.slug;
+  const [cart, setCart] = useState(() => loadCart(slug, storeData.products));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(cartKey(slug), JSON.stringify(cart.map(i => ({ id: i.id, qty: i.qty }))));
+    } catch {}
+  }, [cart, slug]);
 
   function addToCart(product) {
     setCart(prev => {
