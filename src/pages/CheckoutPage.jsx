@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, ShoppingBag, User, CreditCard,
-  Trash2, Plus, Minus, Check, Zap, ChevronRight, Loader2
+  ArrowLeft, ShoppingBag, Truck, User, CreditCard,
+  Trash2, Plus, Minus, Check, Zap, ChevronRight, Loader2, MapPin, Building2
 } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
@@ -11,42 +11,409 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 const STEPS = [
-  { id: 1, label: "Carrito",    icon: ShoppingBag },
-  { id: 2, label: "Tus datos",  icon: User        },
-  { id: 3, label: "Pago",       icon: CreditCard  },
+  { id: 1, label: "Carrito",     icon: ShoppingBag },
+  { id: 2, label: "Envío",       icon: Truck       },
+  { id: 3, label: "Datos",       icon: User        },
+  { id: 4, label: "Pago",        icon: CreditCard  },
 ];
 
-const EMPTY_CUSTOMER = { name: "", email: "", phone: "", city: "", notes: "" };
+const AR_PROVINCES = [
+  "Buenos Aires", "Ciudad Autónoma de Buenos Aires", "Catamarca", "Chaco", "Chubut",
+  "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja",
+  "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis",
+  "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
+];
 
-// ─── Helpers de diagnóstico ───────────────────────────────────────────────────
-//
-// Estos mensajes aparecen en pantalla Y en consola para que puedas rastrear
-// exactamente dónde rompió sin tener que adivinar.
-//
+const EMPTY_SHIPPING = {
+  postal_code:    "",
+  type:           null,    // 'home' | 'branch'
+  street:         "",
+  street_number:  "",
+  floor_apt:      "",
+  city:           "",
+  province:       "",
+  branch_id:      "",
+  branch_name:    "",
+  branch_province: "",
+  service_code:   "",
+  service_name:   "",
+  amount:         0,
+};
+
+const EMPTY_CUSTOMER = {
+  email:      "",
+  firstName:  "",
+  lastName:   "",
+  docType:    "DNI",
+  docNumber:  "",
+  phone:      "",
+  notes:      "",
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function diagnoseMPResponse(data) {
-  // MercadoPago puede devolver el link con distintos nombres según cómo
-  // lo construya el backend. Probamos todos los candidatos conocidos.
-  const candidates = [
-    "checkout_url",       // nombre custom que usa tu backend
-    "init_point",         // nombre nativo de MP (producción)
-    "sandbox_init_point", // nombre nativo de MP (sandbox / pruebas)
-    "url",                // algunos wrappers lo llaman así
-  ];
-
+  const candidates = ["checkout_url", "init_point", "url"];
   for (const key of candidates) {
     if (data[key] && typeof data[key] === "string" && data[key].startsWith("http")) {
-      console.info(`[Checkout] ✅ URL de pago encontrada en campo "${key}":`, data[key]);
       return data[key];
     }
   }
-
-  // Si no encontró nada útil, logueamos todo para diagnóstico
-  console.error(
-    "[Checkout] ❌ La API no devolvió ninguna URL de pago reconocida.\n" +
-    "Campos que llegaron:", Object.keys(data), "\n" +
-    "Respuesta completa:", data
-  );
   return null;
+}
+
+// ─── Sub-component: shipping step ─────────────────────────────────────────────
+
+function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNext }) {
+  const [phase,           setPhase]           = useState("input");   // 'input' | 'method'
+  const [rates,           setRates]           = useState([]);
+  const [shippingAvail,   setShippingAvail]   = useState(true);
+  const [fetchingRates,   setFetchingRates]   = useState(false);
+  const [agencies,        setAgencies]        = useState([]);
+  const [fetchingAgencies,setFetchingAgencies]= useState(false);
+  const [errors,          setErrors]          = useState({});
+
+  const homeRates   = rates.filter(r => r.home_delivery);
+  const branchRates = rates.filter(r => r.branch_pickup);
+
+  async function handleFetchRates() {
+    const e = {};
+    if (!customer.email.trim())             e.email = "Ingresá tu email";
+    else if (!/\S+@\S+\.\S+/.test(customer.email)) e.email = "Email inválido";
+    if (!shipping.postal_code.trim())       e.postal_code = "Ingresá tu código postal";
+    setErrors(e);
+    if (Object.keys(e).length > 0) return;
+
+    setFetchingRates(true);
+    try {
+      const res = await client.get(`/seller/store/public/${slug}/shipping/rates`, {
+        params: { cp: shipping.postal_code.trim() },
+      });
+      const { available, rates: fetchedRates } = res.data;
+      setShippingAvail(available);
+      setRates(fetchedRates || []);
+    } catch {
+      setShippingAvail(false);
+      setRates([]);
+    } finally {
+      setFetchingRates(false);
+      setPhase("method");
+    }
+  }
+
+  async function handleFetchAgencies(province) {
+    setFetchingAgencies(true);
+    setAgencies([]);
+    try {
+      const res = await client.get(`/seller/store/public/${slug}/shipping/agencies`, {
+        params: { province },
+      });
+      setAgencies(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setAgencies([]);
+    } finally {
+      setFetchingAgencies(false);
+    }
+  }
+
+  function selectType(type) {
+    const defaultRate = type === "home"
+      ? (homeRates[0]   || { code: "", name: "", price: 0 })
+      : (branchRates[0] || { code: "", name: "", price: 0 });
+
+    setShipping(s => ({
+      ...s,
+      type,
+      service_code: defaultRate.code,
+      service_name: defaultRate.name,
+      amount:       defaultRate.price,
+    }));
+  }
+
+  function selectRate(rate) {
+    setShipping(s => ({
+      ...s,
+      service_code: rate.code,
+      service_name: rate.name,
+      amount:       rate.price,
+    }));
+  }
+
+  function validateMethod() {
+    const e = {};
+    if (!shipping.type)                       e.type = "Seleccioná un método de envío";
+    if (shipping.type === "home") {
+      if (!shipping.street.trim())            e.street = "Ingresá la calle";
+      if (!shipping.street_number.trim())     e.street_number = "Ingresá el número";
+      if (!shipping.city.trim())              e.city = "Ingresá la ciudad";
+      if (!shipping.province)                 e.province = "Seleccioná la provincia";
+    }
+    if (shipping.type === "branch" && !shipping.branch_id) e.branch = "Seleccioná una sucursal";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  // ── Phase: input (email + CP) ──────────────────────────────────────────────
+  if (phase === "input") {
+    return (
+      <div className="checkout-step" key="shipping-input">
+        <h2 className="checkout-step__title">¿A dónde enviamos tu pedido?</h2>
+        <div className="checkout-form">
+          <div className={`form-field ${errors.email ? "form-field--error" : ""}`}>
+            <label className="form-label">Email *</label>
+            <input
+              className="form-input"
+              type="email"
+              placeholder="tu@email.com"
+              value={customer.email}
+              onChange={e => {
+                setCustomer(p => ({ ...p, email: e.target.value }));
+                if (errors.email) setErrors(prev => ({ ...prev, email: "" }));
+              }}
+            />
+            {errors.email && <span className="form-error">{errors.email}</span>}
+          </div>
+
+          <div className={`form-field ${errors.postal_code ? "form-field--error" : ""}`}>
+            <label className="form-label">Código postal *</label>
+            <input
+              className="form-input"
+              type="text"
+              maxLength={8}
+              placeholder="Ej: 1414"
+              value={shipping.postal_code}
+              onChange={e => {
+                setShipping(s => ({ ...s, postal_code: e.target.value }));
+                if (errors.postal_code) setErrors(prev => ({ ...prev, postal_code: "" }));
+              }}
+              onKeyDown={e => e.key === "Enter" && handleFetchRates()}
+            />
+            {errors.postal_code && <span className="form-error">{errors.postal_code}</span>}
+          </div>
+        </div>
+
+        <button
+          className="btn-next"
+          onClick={handleFetchRates}
+          disabled={fetchingRates}
+        >
+          {fetchingRates
+            ? <><Loader2 size={16} className="spin" /> Cotizando...</>
+            : <>Continuar <ChevronRight size={16} /></>}
+        </button>
+      </div>
+    );
+  }
+
+  // ── Phase: method (choose type + fill details) ─────────────────────────────
+  return (
+    <div className="checkout-step" key="shipping-method">
+      <h2 className="checkout-step__title">Elegí cómo recibir tu pedido</h2>
+
+      {!shippingAvail && rates.length === 0 && (
+        <div style={{
+          background: "var(--surface-2, #f8f8f8)",
+          border: "1px solid var(--border, #e2e2e2)",
+          borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: ".875rem", color: "var(--text-secondary)",
+        }}>
+          El vendedor coordinará el envío con vos una vez que realices el pedido.
+        </div>
+      )}
+
+      {/* Type selector */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        {(shippingAvail ? homeRates.length > 0 : true) && (
+          <button
+            type="button"
+            onClick={() => selectType("home")}
+            style={{
+              flex: 1, minWidth: 140, padding: "14px 16px", borderRadius: 10, cursor: "pointer",
+              border: `2px solid ${shipping.type === "home" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
+              background: shipping.type === "home" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
+              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+            }}
+          >
+            <MapPin size={20} color={shipping.type === "home" ? "var(--brand, #6366f1)" : undefined} />
+            <strong style={{ fontSize: ".875rem" }}>Envío a domicilio</strong>
+            {shippingAvail && homeRates[0] && (
+              <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>
+                desde ${fmt(homeRates[0].price)}
+                {homeRates[0].delivery_days ? ` · ${homeRates[0].delivery_days} días` : ""}
+              </span>
+            )}
+          </button>
+        )}
+
+        {(shippingAvail ? branchRates.length > 0 : true) && (
+          <button
+            type="button"
+            onClick={() => selectType("branch")}
+            style={{
+              flex: 1, minWidth: 140, padding: "14px 16px", borderRadius: 10, cursor: "pointer",
+              border: `2px solid ${shipping.type === "branch" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
+              background: shipping.type === "branch" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
+              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+            }}
+          >
+            <Building2 size={20} color={shipping.type === "branch" ? "var(--brand, #6366f1)" : undefined} />
+            <strong style={{ fontSize: ".875rem" }}>Retiro en sucursal</strong>
+            {shippingAvail && branchRates[0] && (
+              <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>
+                desde ${fmt(branchRates[0].price)}
+                {branchRates[0].delivery_days ? ` · ${branchRates[0].delivery_days} días` : ""}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+      {errors.type && <span className="form-error" style={{ display: "block", marginBottom: 12 }}>{errors.type}</span>}
+
+      {/* Rate selector (if multiple options for chosen type) */}
+      {shipping.type === "home" && homeRates.length > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: ".82rem", color: "var(--text-secondary)", marginBottom: 8 }}>Servicio de envío:</p>
+          {homeRates.map(r => (
+            <label key={r.code} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8, cursor: "pointer" }}>
+              <input type="radio" name="home_rate" checked={shipping.service_code === r.code}
+                onChange={() => selectRate(r)} />
+              <span style={{ flex: 1, fontSize: ".875rem" }}>{r.name}</span>
+              <span style={{ fontWeight: 600 }}>${fmt(r.price)}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      {shipping.type === "branch" && branchRates.length > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: ".82rem", color: "var(--text-secondary)", marginBottom: 8 }}>Servicio de envío:</p>
+          {branchRates.map(r => (
+            <label key={r.code} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8, cursor: "pointer" }}>
+              <input type="radio" name="branch_rate" checked={shipping.service_code === r.code}
+                onChange={() => selectRate(r)} />
+              <span style={{ flex: 1, fontSize: ".875rem" }}>{r.name}</span>
+              <span style={{ fontWeight: 600 }}>${fmt(r.price)}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {/* Home delivery address form */}
+      {shipping.type === "home" && (
+        <div className="checkout-form" style={{ marginTop: 4 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12 }}>
+            <div className={`form-field ${errors.street ? "form-field--error" : ""}`}>
+              <label className="form-label">Calle *</label>
+              <input className="form-input" placeholder="Av. Corrientes"
+                value={shipping.street}
+                onChange={e => setShipping(s => ({ ...s, street: e.target.value }))} />
+              {errors.street && <span className="form-error">{errors.street}</span>}
+            </div>
+            <div className={`form-field ${errors.street_number ? "form-field--error" : ""}`}>
+              <label className="form-label">Número *</label>
+              <input className="form-input" placeholder="1234" style={{ width: 90 }}
+                value={shipping.street_number}
+                onChange={e => setShipping(s => ({ ...s, street_number: e.target.value }))} />
+              {errors.street_number && <span className="form-error">{errors.street_number}</span>}
+            </div>
+          </div>
+          <div className={`form-field`}>
+            <label className="form-label">Piso / Depto (opcional)</label>
+            <input className="form-input" placeholder="3° B"
+              value={shipping.floor_apt}
+              onChange={e => setShipping(s => ({ ...s, floor_apt: e.target.value }))} />
+          </div>
+          <div className={`form-field ${errors.city ? "form-field--error" : ""}`}>
+            <label className="form-label">Ciudad *</label>
+            <input className="form-input" placeholder="Buenos Aires"
+              value={shipping.city}
+              onChange={e => setShipping(s => ({ ...s, city: e.target.value }))} />
+            {errors.city && <span className="form-error">{errors.city}</span>}
+          </div>
+          <div className={`form-field ${errors.province ? "form-field--error" : ""}`}>
+            <label className="form-label">Provincia *</label>
+            <select className="form-input" value={shipping.province}
+              onChange={e => setShipping(s => ({ ...s, province: e.target.value }))}>
+              <option value="">Seleccioná una provincia</option>
+              {AR_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            {errors.province && <span className="form-error">{errors.province}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Branch pickup */}
+      {shipping.type === "branch" && (
+        <div className="checkout-form" style={{ marginTop: 4 }}>
+          <div className="form-field">
+            <label className="form-label">Provincia para buscar sucursales</label>
+            <select className="form-input" value={shipping.branch_province}
+              onChange={e => {
+                const prov = e.target.value;
+                setShipping(s => ({ ...s, branch_province: prov, branch_id: "", branch_name: "" }));
+                if (prov) handleFetchAgencies(prov);
+              }}>
+              <option value="">Seleccioná una provincia</option>
+              {AR_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          {fetchingAgencies && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: ".875rem", color: "var(--text-secondary)" }}>
+              <Loader2 size={15} className="spin" /> Buscando sucursales...
+            </div>
+          )}
+
+          {!fetchingAgencies && agencies.length > 0 && (
+            <div className="form-field">
+              <label className="form-label">Sucursal *</label>
+              <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border, #e2e2e2)", borderRadius: 8 }}>
+                {agencies.map(a => (
+                  <label
+                    key={a.id}
+                    style={{
+                      display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 14px",
+                      cursor: "pointer", borderBottom: "1px solid var(--border, #e2e2e2)",
+                      background: shipping.branch_id === a.id ? "var(--brand-light, #eef2ff)" : "transparent",
+                    }}
+                  >
+                    <input type="radio" name="branch_agency" style={{ marginTop: 3 }}
+                      checked={shipping.branch_id === a.id}
+                      onChange={() => setShipping(s => ({ ...s, branch_id: a.id, branch_name: a.name, province: a.province, city: a.city }))} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: ".875rem" }}>{a.name}</div>
+                      <div style={{ fontSize: ".78rem", color: "var(--text-secondary)" }}>
+                        {a.address}{a.city ? `, ${a.city}` : ""}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {errors.branch && <span className="form-error">{errors.branch}</span>}
+            </div>
+          )}
+
+          {!fetchingAgencies && shipping.branch_province && agencies.length === 0 && (
+            <p style={{ fontSize: ".875rem", color: "var(--text-secondary)" }}>
+              No se encontraron sucursales para esa provincia.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+        <button className="btn-ghost" style={{ flex: "0 0 auto" }} onClick={() => setPhase("input")}>
+          <ArrowLeft size={15} /> Volver
+        </button>
+        <button
+          className="btn-next"
+          style={{ flex: 1 }}
+          onClick={() => { if (validateMethod()) onNext(); }}
+        >
+          Continuar <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -57,135 +424,118 @@ export default function CheckoutPage({ slug }) {
     updateQty, removeFromCart, clearCart,
   } = useStore();
 
-  const [step, setStep]         = useState(1);
+  const [step,     setStep]     = useState(1);
+  const [shipping, setShipping] = useState(EMPTY_SHIPPING);
   const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
-  const [errors, setErrors]     = useState({});
-  const [sending, setSending]   = useState(false);
-  const [success, setSuccess]   = useState(null);
+  const [errors,   setErrors]   = useState({});
+  const [sending,  setSending]  = useState(false);
+  const [success,  setSuccess]  = useState(null);
 
-  const subtotal = discountResult.subtotal ?? 0;
-  const hasDisc  = totalSaved > 0.01;
+  const subtotal     = discountResult.subtotal ?? 0;
+  const hasDisc      = totalSaved > 0.01;
+  const shippingAmt  = shipping.amount || 0;
+  const grandTotal   = finalTotal + shippingAmt;
 
-  // ── Validación step 2 ──────────────────────────────────────────────────────
-  function validateStep2() {
+  // ── Validación step 3 ──────────────────────────────────────────────────────
+  function validateStep3() {
     const e = {};
-    if (!customer.name.trim())  e.name  = "Ingresá tu nombre";
-    if (!customer.email.trim()) e.email = "Ingresá tu email";
-    else if (!/\S+@\S+\.\S+/.test(customer.email)) e.email = "Email inválido";
-    if (!customer.phone.trim()) e.phone = "Ingresá tu teléfono";
+    if (!customer.firstName.trim()) e.firstName = "Ingresá tu nombre";
+    if (!customer.lastName.trim())  e.lastName  = "Ingresá tu apellido";
+    if (!customer.docNumber.trim()) e.docNumber = "Ingresá tu número de documento";
+    if (!customer.phone.trim())     e.phone     = "Ingresá tu teléfono";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
-  // ── Submit del pedido ──────────────────────────────────────────────────────
+  // ── Submit ─────────────────────────────────────────────────────────────────
   async function submitOrder() {
     setSending(true);
     setErrors({});
 
-    let res;
+    const fullName = `${customer.firstName} ${customer.lastName}`.trim();
 
-    // 1️⃣ Llamada a la API
+    let res;
     try {
-      console.info("[Checkout] Enviando pedido a la API…");
       res = await client.post(`/seller/purchase/public/${slug}/checkout`, {
-        customer,
+        customer: {
+          name:      fullName,
+          firstName: customer.firstName,
+          lastName:  customer.lastName,
+          email:     customer.email,
+          phone:     customer.phone,
+          docType:   customer.docType,
+          docNumber: customer.docNumber,
+          city:      shipping.city || "",
+          notes:     customer.notes,
+        },
         items: discountResult.items.map(i => ({
           product_id: i.id,
           name:       i.custom_name || i.name,
           quantity:   i.qty,
           unit_price: i.effectivePrice,
         })),
-        total: finalTotal,
+        shipping: {
+          type:          shipping.type,
+          postal_code:   shipping.postal_code,
+          street:        shipping.street,
+          street_number: shipping.street_number,
+          floor_apt:     shipping.floor_apt,
+          city:          shipping.city,
+          province:      shipping.province,
+          branch_id:     shipping.branch_id,
+          branch_name:   shipping.branch_name,
+          service_code:  shipping.service_code,
+          service_name:  shipping.service_name,
+          amount:        shippingAmt,
+        },
+        total: grandTotal,
       });
-      console.info("[Checkout] Respuesta de la API:", res.data);
     } catch (err) {
-      // La API devolvió un error HTTP (4xx / 5xx) o no hubo conexión
-      const status  = err.response?.status;
-      const msg     = err.response?.data?.message || err.response?.data?.error;
+      const status    = err.response?.status;
+      const msg       = err.response?.data?.message || err.response?.data?.error;
       const isNetwork = !err.response;
-
-      console.error("[Checkout] ❌ Error al llamar a la API:", {
-        status,
-        data: err.response?.data,
-        message: err.message,
-      });
-
       let userMsg;
-      if (isNetwork) {
-        userMsg = "No se pudo conectar al servidor. Verificá tu conexión.";
-      } else if (status === 401 || status === 403) {
-        userMsg = `Error de autenticación (${status}). La tienda no tiene permisos para cobrar.`;
-      } else if (status === 422) {
-        userMsg = msg || "Datos del pedido inválidos. Revisá el carrito e intentá de nuevo.";
-      } else if (status >= 500) {
-        userMsg = `Error del servidor (${status}). Intentá de nuevo en unos segundos.`;
-      } else {
-        userMsg = msg || `Error inesperado (${status ?? "sin respuesta"}). Revisá la consola para más detalles.`;
-      }
-
+      if (isNetwork)                   userMsg = "No se pudo conectar al servidor.";
+      else if (status === 401 || status === 403) userMsg = `Error de autenticación (${status}).`;
+      else if (status >= 500)          userMsg = `Error del servidor (${status}). Intentá de nuevo.`;
+      else                             userMsg = msg || `Error inesperado (${status ?? "sin respuesta"}).`;
       setErrors({ submit: userMsg });
       setSending(false);
       return;
     }
 
-    // 2️⃣ Buscar la URL de pago en la respuesta
     const payUrl = diagnoseMPResponse(res.data);
-
     if (payUrl) {
-      // ✅ Redireccionamos directamente: es el método más confiable y compatible.
-      // El modal embebido de MP requiere configuración extra en el backend
-      // (preference con purpose:"wallet_purchase") y el SDK cargado como script externo.
-      // La redirección funciona siempre, con cualquier tipo de preference.
-      console.info("[Checkout] Redirigiendo a MercadoPago…");
       window.location.href = payUrl;
-      // No llamamos setSending(false) porque la página va a cambiar
       return;
     }
 
-    // 3️⃣ No había URL → pedido manual / contra entrega
     if (res.data.order_number || res.data.numero) {
-      console.info("[Checkout] Pedido sin pago online creado:", res.data);
       clearCart();
       setSuccess(res.data);
       setSending(false);
       return;
     }
 
-    // 4️⃣ La API respondió 200 pero sin datos reconocibles
-    console.error(
-      "[Checkout] ❌ La API respondió OK pero sin URL de pago ni número de orden.\n" +
-      "Revisá que el endpoint devuelva `checkout_url` (o `init_point`) y/o `order_number`.\n" +
-      "Respuesta completa:", res.data
-    );
-    setErrors({
-      submit:
-        "La tienda procesó el pedido pero no devolvió información de pago. " +
-        "Revisá la consola (F12) y contactá al administrador.",
-    });
+    setErrors({ submit: "La tienda procesó el pedido pero no devolvió información de pago. Revisá la consola (F12)." });
     setSending(false);
   }
 
-  // ── Pantalla de éxito (pedidos sin pago online) ────────────────────────────
+  // ── Pantalla de éxito ──────────────────────────────────────────────────────
   if (success) {
     return (
       <div className="store-root">
         <Navbar />
         <div className="checkout-success">
           <div className="checkout-success__card">
-            <div className="checkout-success__check">
-              <Check size={36} strokeWidth={2.5} />
-            </div>
+            <div className="checkout-success__check"><Check size={36} strokeWidth={2.5} /></div>
             <h1>¡Pedido recibido!</h1>
-            <p className="checkout-success__num">
-              Pedido #{success.numero || success.order_number}
-            </p>
+            <p className="checkout-success__num">Pedido #{success.numero || success.order_number}</p>
             <p className="checkout-success__msg">
               Te vamos a contactar pronto para coordinar la entrega.
               Revisá tu email <strong>{customer.email}</strong>.
             </p>
-            <button className="btn-add-cart" onClick={() => navigate("/")}>
-              Seguir comprando
-            </button>
+            <button className="btn-add-cart" onClick={() => navigate("/")}>Seguir comprando</button>
           </div>
         </div>
         <Footer />
@@ -241,17 +591,15 @@ export default function CheckoutPage({ slug }) {
                 <div className="empty-state">
                   <div className="empty-state__icon">🛒</div>
                   <h3>Tu carrito está vacío</h3>
-                  <button className="btn-ghost" onClick={() => navigate("/")}>
-                    Ver productos
-                  </button>
+                  <button className="btn-ghost" onClick={() => navigate("/")}>Ver productos</button>
                 </div>
               ) : (
                 <>
                   <div className="cart-items">
                     {discountResult.items.map(item => {
-                      const base   = Number(item.precio_venta);
-                      const eff    = item.effectivePrice;
-                      const saved  = item.savedPerUnit ?? 0;
+                      const base  = Number(item.precio_venta);
+                      const eff   = item.effectivePrice;
+                      const saved = item.savedPerUnit ?? 0;
                       const hasDsc = saved > 0.01;
                       return (
                         <div key={item.id} className="cart-item">
@@ -276,17 +624,11 @@ export default function CheckoutPage({ slug }) {
                             </div>
                           </div>
                           <div className="cart-item__qty">
-                            <button className="qbtn" onClick={() => updateQty(item.id, -1)}>
-                              <Minus size={13} />
-                            </button>
+                            <button className="qbtn" onClick={() => updateQty(item.id, -1)}><Minus size={13} /></button>
                             <span>{item.qty}</span>
-                            <button className="qbtn" onClick={() => updateQty(item.id, +1)}>
-                              <Plus size={13} />
-                            </button>
+                            <button className="qbtn" onClick={() => updateQty(item.id, +1)}><Plus size={13} /></button>
                           </div>
-                          <div className="cart-item__subtotal">
-                            ${fmt(eff * item.qty)}
-                          </div>
+                          <div className="cart-item__subtotal">${fmt(eff * item.qty)}</div>
                           <button className="cart-item__remove" onClick={() => removeFromCart(item.id)}>
                             <Trash2 size={14} />
                           </button>
@@ -296,9 +638,7 @@ export default function CheckoutPage({ slug }) {
                   </div>
 
                   <div className="cart-summary">
-                    <div className="cart-summary__row">
-                      <span>Subtotal</span><span>${fmt(subtotal)}</span>
-                    </div>
+                    <div className="cart-summary__row"><span>Subtotal</span><span>${fmt(subtotal)}</span></div>
                     {hasDisc && (
                       <div className="cart-summary__row cart-summary__row--disc">
                         <span><Zap size={13} /> Descuento</span>
@@ -306,7 +646,7 @@ export default function CheckoutPage({ slug }) {
                       </div>
                     )}
                     <div className="cart-summary__row cart-summary__row--total">
-                      <span>Total</span><span>${fmt(finalTotal)}</span>
+                      <span>Total productos</span><span>${fmt(finalTotal)}</span>
                     </div>
                   </div>
 
@@ -318,65 +658,96 @@ export default function CheckoutPage({ slug }) {
             </div>
           )}
 
-          {/* ── Step 2: Datos del cliente ────────────────────────────────── */}
+          {/* ── Step 2: Envío ────────────────────────────────────────────── */}
           {step === 2 && (
-            <div className="checkout-step" key="info">
-              <h2 className="checkout-step__title">Tus datos de contacto</h2>
+            <ShippingStep
+              slug={slug}
+              shipping={shipping}
+              setShipping={setShipping}
+              customer={customer}
+              setCustomer={setCustomer}
+              onNext={() => setStep(3)}
+            />
+          )}
 
+          {/* ── Step 3: Datos de facturación ─────────────────────────────── */}
+          {step === 3 && (
+            <div className="checkout-step" key="billing">
+              <h2 className="checkout-step__title">Tus datos</h2>
               <div className="checkout-form">
-                {[
-                  { key: "name",  label: "Nombre y apellido *",    type: "text",  ph: "Juan García"        },
-                  { key: "email", label: "Email *",                 type: "email", ph: "juan@email.com"     },
-                  { key: "phone", label: "Teléfono / WhatsApp *",   type: "tel",   ph: "+54 11 1234-5678"   },
-                  { key: "city",  label: "Ciudad",                  type: "text",  ph: "Buenos Aires"       },
-                ].map(({ key, label, type, ph }) => (
-                  <div key={key} className={`form-field ${errors[key] ? "form-field--error" : ""}`}>
-                    <label className="form-label">{label}</label>
-                    <input
-                      className="form-input"
-                      type={type}
-                      placeholder={ph}
-                      value={customer[key]}
-                      onChange={e => {
-                        setCustomer(p => ({ ...p, [key]: e.target.value }));
-                        if (errors[key]) setErrors(prev => ({ ...prev, [key]: "" }));
-                      }}
-                    />
-                    {errors[key] && <span className="form-error">{errors[key]}</span>}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className={`form-field ${errors.firstName ? "form-field--error" : ""}`}>
+                    <label className="form-label">Nombre *</label>
+                    <input className="form-input" placeholder="Juan"
+                      value={customer.firstName}
+                      onChange={e => { setCustomer(p => ({ ...p, firstName: e.target.value })); if (errors.firstName) setErrors(p => ({ ...p, firstName: "" })); }} />
+                    {errors.firstName && <span className="form-error">{errors.firstName}</span>}
                   </div>
-                ))}
+                  <div className={`form-field ${errors.lastName ? "form-field--error" : ""}`}>
+                    <label className="form-label">Apellido *</label>
+                    <input className="form-input" placeholder="García"
+                      value={customer.lastName}
+                      onChange={e => { setCustomer(p => ({ ...p, lastName: e.target.value })); if (errors.lastName) setErrors(p => ({ ...p, lastName: "" })); }} />
+                    {errors.lastName && <span className="form-error">{errors.lastName}</span>}
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12 }}>
+                  <div className="form-field">
+                    <label className="form-label">Tipo doc.</label>
+                    <select className="form-input" value={customer.docType}
+                      onChange={e => setCustomer(p => ({ ...p, docType: e.target.value }))}>
+                      <option value="DNI">DNI</option>
+                      <option value="CUIT">CUIT</option>
+                      <option value="CUIL">CUIL</option>
+                      <option value="Pasaporte">Pasaporte</option>
+                    </select>
+                  </div>
+                  <div className={`form-field ${errors.docNumber ? "form-field--error" : ""}`}>
+                    <label className="form-label">Número *</label>
+                    <input className="form-input" placeholder="12345678"
+                      value={customer.docNumber}
+                      onChange={e => { setCustomer(p => ({ ...p, docNumber: e.target.value })); if (errors.docNumber) setErrors(p => ({ ...p, docNumber: "" })); }} />
+                    {errors.docNumber && <span className="form-error">{errors.docNumber}</span>}
+                  </div>
+                </div>
+
+                <div className={`form-field ${errors.phone ? "form-field--error" : ""}`}>
+                  <label className="form-label">Teléfono / WhatsApp *</label>
+                  <input className="form-input" type="tel" placeholder="+54 11 1234-5678"
+                    value={customer.phone}
+                    onChange={e => { setCustomer(p => ({ ...p, phone: e.target.value })); if (errors.phone) setErrors(p => ({ ...p, phone: "" })); }} />
+                  {errors.phone && <span className="form-error">{errors.phone}</span>}
+                </div>
 
                 <div className="form-field">
                   <label className="form-label">Observaciones</label>
-                  <textarea
-                    className="form-input form-textarea"
-                    rows={3}
+                  <textarea className="form-input form-textarea" rows={3}
                     placeholder="Aclaraciones, horarios de entrega, etc."
                     value={customer.notes}
-                    onChange={e => setCustomer(p => ({ ...p, notes: e.target.value }))}
-                  />
+                    onChange={e => setCustomer(p => ({ ...p, notes: e.target.value }))} />
                 </div>
               </div>
 
               <button
                 className="btn-next"
-                onClick={() => { if (validateStep2()) setStep(3); }}
+                onClick={() => { if (validateStep3()) setStep(4); }}
               >
                 Continuar <ChevronRight size={16} />
               </button>
             </div>
           )}
 
-          {/* ── Step 3: Resumen y pago ───────────────────────────────────── */}
-          {step === 3 && (
+          {/* ── Step 4: Resumen y pago ───────────────────────────────────── */}
+          {step === 4 && (
             <div className="checkout-step" key="pay">
               <h2 className="checkout-step__title">Resumen y pago</h2>
 
-              {/* Datos del cliente */}
+              {/* Datos del comprador */}
               <div className="pay-summary-card">
                 <div className="pay-summary-card__row">
                   <User size={14} />
-                  <span>{customer.name}</span>
+                  <span>{customer.firstName} {customer.lastName}</span>
                 </div>
                 <div className="pay-summary-card__row">
                   <span className="pay-summary-card__label">Email</span>
@@ -386,24 +757,46 @@ export default function CheckoutPage({ slug }) {
                   <span className="pay-summary-card__label">Teléfono</span>
                   <span>{customer.phone}</span>
                 </div>
-                {customer.city && (
-                  <div className="pay-summary-card__row">
-                    <span className="pay-summary-card__label">Ciudad</span>
-                    <span>{customer.city}</span>
-                  </div>
-                )}
+                <div className="pay-summary-card__row">
+                  <span className="pay-summary-card__label">{customer.docType}</span>
+                  <span>{customer.docNumber}</span>
+                </div>
               </div>
+
+              {/* Detalle de envío */}
+              {shipping.type && (
+                <div className="pay-summary-card" style={{ marginTop: 10 }}>
+                  <div className="pay-summary-card__row">
+                    <Truck size={14} />
+                    <span>{shipping.type === "home" ? "Envío a domicilio" : "Retiro en sucursal"}</span>
+                  </div>
+                  {shipping.type === "home" && (
+                    <div className="pay-summary-card__row">
+                      <span className="pay-summary-card__label">Dirección</span>
+                      <span>{shipping.street} {shipping.street_number}{shipping.floor_apt ? ` ${shipping.floor_apt}` : ""}, {shipping.city}, {shipping.province}</span>
+                    </div>
+                  )}
+                  {shipping.type === "branch" && shipping.branch_name && (
+                    <div className="pay-summary-card__row">
+                      <span className="pay-summary-card__label">Sucursal</span>
+                      <span>{shipping.branch_name}</span>
+                    </div>
+                  )}
+                  {shipping.service_name && (
+                    <div className="pay-summary-card__row">
+                      <span className="pay-summary-card__label">Servicio</span>
+                      <span>{shipping.service_name}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Items */}
               <div className="pay-items">
                 {discountResult.items.map(item => (
                   <div key={item.id} className="pay-item">
-                    <span className="pay-item__name">
-                      {item.custom_name || item.name} × {item.qty}
-                    </span>
-                    <span className="pay-item__total">
-                      ${fmt(item.effectivePrice * item.qty)}
-                    </span>
+                    <span className="pay-item__name">{item.custom_name || item.name} × {item.qty}</span>
+                    <span className="pay-item__total">${fmt(item.effectivePrice * item.qty)}</span>
                   </div>
                 ))}
               </div>
@@ -416,41 +809,38 @@ export default function CheckoutPage({ slug }) {
                     <span>−${fmt(totalSaved)}</span>
                   </div>
                 )}
+                {shippingAmt > 0 && (
+                  <div className="pay-totals__row">
+                    <span><Truck size={13} /> {shipping.service_name || "Envío"}</span>
+                    <span>${fmt(shippingAmt)}</span>
+                  </div>
+                )}
                 <div className="pay-totals__row pay-totals__row--final">
                   <span>Total a pagar</span>
-                  <span>${fmt(finalTotal)}</span>
+                  <span>${fmt(grandTotal)}</span>
                 </div>
               </div>
 
-              {/* Error con diagnóstico visible */}
               {errors.submit && (
-                <div className="form-error-box" style={{
-                  background: "#fff0f0",
-                  border: "1px solid #ffb3b3",
-                  borderRadius: 8,
-                  padding: "12px 16px",
-                  marginBottom: 16,
-                  fontSize: 14,
-                  color: "#c00",
+                <div style={{
+                  background: "#fff0f0", border: "1px solid #ffb3b3", borderRadius: 8,
+                  padding: "12px 16px", marginBottom: 16, fontSize: 14, color: "#c00",
                 }}>
                   <strong>⚠️ {errors.submit}</strong>
                   <p style={{ margin: "6px 0 0", color: "#666", fontSize: 12 }}>
-                    Abrí la consola del navegador (F12 → Console) para ver el detalle técnico completo.
+                    Abrí la consola del navegador (F12 → Console) para ver el detalle técnico.
                   </p>
                 </div>
               )}
 
-              {/* Botón de pago */}
               <button
                 className={`btn-pay ${sending ? "btn-pay--loading" : ""}`}
                 onClick={submitOrder}
                 disabled={sending}
               >
-                {sending ? (
-                  <><Loader2 size={18} className="spin" /> Procesando...</>
-                ) : (
-                  <><CreditCard size={18} /> Pagar ${fmt(finalTotal)}</>
-                )}
+                {sending
+                  ? <><Loader2 size={18} className="spin" /> Procesando...</>
+                  : <><CreditCard size={18} /> Pagar ${fmt(grandTotal)}</>}
               </button>
 
               <p className="pay-note">
@@ -459,7 +849,7 @@ export default function CheckoutPage({ slug }) {
             </div>
           )}
 
-          {/* ── Sidebar resumen (steps 2 y 3) ───────────────────────────── */}
+          {/* ── Sidebar (steps 2, 3 y 4) ─────────────────────────────────── */}
           {step > 1 && (
             <aside className="checkout-aside">
               <h3 className="checkout-aside__title">Tu pedido</h3>
@@ -477,9 +867,15 @@ export default function CheckoutPage({ slug }) {
                   <span>−${fmt(totalSaved)}</span>
                 </div>
               )}
+              {shippingAmt > 0 && (
+                <div className="aside-total">
+                  <span><Truck size={12} /> Envío</span>
+                  <span>${fmt(shippingAmt)}</span>
+                </div>
+              )}
               <div className="aside-total aside-total--main">
                 <span>Total</span>
-                <span>${fmt(finalTotal)}</span>
+                <span>${fmt(grandTotal)}</span>
               </div>
             </aside>
           )}
