@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, X, ChevronRight, ShieldCheck, Truck, MessageCircle } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import Navbar          from "../components/Navbar";
+import PromoBar        from "../components/PromoBar";
 import Footer          from "../components/Footer";
 import ProductCard     from "../components/ProductCard";
 import DiscountBanner  from "../components/DiscountBanner";
@@ -41,6 +42,7 @@ export default function StorePage() {
 
   return (
     <div className="store-root">
+      <PromoBar />
       <Navbar />
 
       {/* ── Hero ──────────────────────────────────────────── */}
@@ -50,9 +52,11 @@ export default function StorePage() {
           <div className="hero__shape hero__shape--2" />
           <div className="hero__shape hero__shape--3" />
         </div>
-        <div className="hero__inner">
+        <div className={`hero__inner${page.hero_image_url ? " hero__inner--split" : ""}`}>
           <div className="hero__content">
-            <h1 className="hero__title">{page.store_name || "Mi tienda"}</h1>
+            <h1 className="hero__title">
+              {page.hero_headline || page.store_name || "Mi tienda"}
+            </h1>
             {(page.tagline || page.store_description) && (
               <p className="hero__sub">{page.tagline || page.store_description}</p>
             )}
@@ -71,6 +75,17 @@ export default function StorePage() {
               <span className="hero__trust-item"><MessageCircle size={13} /> Atención personalizada</span>
             </div>
           </div>
+
+          {page.hero_image_url && (
+            <div className="hero__img-wrap">
+              <img
+                src={page.hero_image_url}
+                alt={page.store_name || ""}
+                className="hero__img"
+                onError={e => { e.target.parentElement.style.display = "none"; }}
+              />
+            </div>
+          )}
         </div>
         <div className="hero__wave">
           <svg viewBox="0 0 1440 80" preserveAspectRatio="none">
