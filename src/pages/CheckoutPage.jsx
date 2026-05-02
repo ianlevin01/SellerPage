@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ShoppingBag, Truck, User, CreditCard,
-  Trash2, Plus, Minus, Check, Zap, ChevronRight, Loader2, MapPin, Building2
+  Trash2, Plus, Minus, Check, Zap, ChevronRight, Loader2, MapPin, Building2, MessageSquare
 } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
@@ -80,9 +80,13 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
     const e = {};
     if (!customer.email.trim())             e.email = "Ingresá tu email";
     else if (!/\S+@\S+\.\S+/.test(customer.email)) e.email = "Email inválido";
-    if (!shipping.postal_code.trim())       e.postal_code = "Ingresá tu código postal";
     setErrors(e);
     if (Object.keys(e).length > 0) return;
+
+    if (!shipping.postal_code.trim()) {
+      setPhase("method");
+      return;
+    }
 
     setFetchingRates(true);
     try {
@@ -117,6 +121,10 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
   }
 
   function selectType(type) {
+    if (type === "separate") {
+      setShipping(s => ({ ...s, type: "separate", service_code: "", service_name: "A coordinar con el vendedor", amount: 0 }));
+      return;
+    }
     const defaultRate = type === "home"
       ? (homeRates[0]   || { code: "", name: "", price: 0 })
       : (branchRates[0] || { code: "", name: "", price: 0 });
@@ -149,6 +157,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
       if (!shipping.province)                 e.province = "Seleccioná la provincia";
     }
     if (shipping.type === "branch" && !shipping.branch_id) e.branch = "Seleccioná una sucursal";
+    // "separate" requires no address
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -174,21 +183,17 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
             {errors.email && <span className="form-error">{errors.email}</span>}
           </div>
 
-          <div className={`form-field ${errors.postal_code ? "form-field--error" : ""}`}>
-            <label className="form-label">Código postal *</label>
+          <div className="form-field">
+            <label className="form-label">Código postal <span style={{ fontWeight: 400, color: "var(--text-secondary)" }}>(opcional — para cotizar envío)</span></label>
             <input
               className="form-input"
               type="text"
               maxLength={8}
               placeholder="Ej: 1414"
               value={shipping.postal_code}
-              onChange={e => {
-                setShipping(s => ({ ...s, postal_code: e.target.value }));
-                if (errors.postal_code) setErrors(prev => ({ ...prev, postal_code: "" }));
-              }}
+              onChange={e => setShipping(s => ({ ...s, postal_code: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && handleFetchRates()}
             />
-            {errors.postal_code && <span className="form-error">{errors.postal_code}</span>}
           </div>
         </div>
 
@@ -265,6 +270,21 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
             )}
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => selectType("separate")}
+          style={{
+            flex: 1, minWidth: 140, padding: "14px 16px", borderRadius: 10, cursor: "pointer",
+            border: `2px solid ${shipping.type === "separate" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
+            background: shipping.type === "separate" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
+            display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+          }}
+        >
+          <MessageSquare size={20} color={shipping.type === "separate" ? "var(--brand, #6366f1)" : undefined} />
+          <strong style={{ fontSize: ".875rem" }}>Coordinar con el vendedor</strong>
+          <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>Sin costo adicional</span>
+        </button>
       </div>
       {errors.type && <span className="form-error" style={{ display: "block", marginBottom: 12 }}>{errors.type}</span>}
 
@@ -768,7 +788,11 @@ export default function CheckoutPage({ slug }) {
                 <div className="pay-summary-card" style={{ marginTop: 10 }}>
                   <div className="pay-summary-card__row">
                     <Truck size={14} />
-                    <span>{shipping.type === "home" ? "Envío a domicilio" : "Retiro en sucursal"}</span>
+                    <span>
+                      {shipping.type === "home"     ? "Envío a domicilio"
+                      : shipping.type === "branch"  ? "Retiro en sucursal"
+                      :                               "Coordinar envío con el vendedor"}
+                    </span>
                   </div>
                   {shipping.type === "home" && (
                     <div className="pay-summary-card__row">
