@@ -4,7 +4,8 @@ import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
 
 export default function ProductCard({ product, style }) {
-  const { cart, addToCart, updateQty, discountResult, discount } = useStore();
+  const { page, cart, addToCart, updateQty, discountResult, discount } = useStore();
+  const cardStyle = page?.theme_config?.card_style || "default";
   const navigate = useNavigate();
 
   const cartItem   = cart.find(i => i.id === product.id);
@@ -32,7 +33,7 @@ export default function ProductCard({ product, style }) {
 
   return (
     <article
-      className="pcard"
+      className={`pcard pcard--${cardStyle}`}
       style={style}
       onClick={() => navigate(`/product/${product.id}`)}
     >

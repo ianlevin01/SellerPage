@@ -11,6 +11,7 @@ import DiscountBanner  from "../components/DiscountBanner";
 export default function StorePage() {
   const { page, products } = useStore();
   const navigate = useNavigate();
+  const tc = page?.theme_config || {};
   const [search, setSearch]     = useState("");
   const [catFilter, setCatFilter] = useState(null);
 
@@ -46,13 +47,24 @@ export default function StorePage() {
       <Navbar />
 
       {/* ── Hero ──────────────────────────────────────────── */}
-      <section className="hero">
-        <div className="hero__shapes" aria-hidden="true">
-          <div className="hero__shape hero__shape--1" />
-          <div className="hero__shape hero__shape--2" />
-          <div className="hero__shape hero__shape--3" />
-        </div>
-        <div className={`hero__inner${page.hero_image_url ? " hero__inner--split" : ""}`}>
+      <section
+        className={`hero${tc.hero_bg_type === "image" && page.hero_image_url ? " hero--img-bg" : ""}`}
+        style={tc.hero_bg_type === "image" && page.hero_image_url
+          ? { backgroundImage: `url(${page.hero_image_url})` }
+          : undefined
+        }
+      >
+        {tc.hero_bg_type !== "image" && (
+          <div className="hero__shapes" aria-hidden="true">
+            <div className="hero__shape hero__shape--1" />
+            <div className="hero__shape hero__shape--2" />
+            <div className="hero__shape hero__shape--3" />
+          </div>
+        )}
+        {tc.hero_bg_type === "image" && page.hero_image_url && (
+          <div className="hero__overlay" />
+        )}
+        <div className="hero__inner">
           <div className="hero__content">
             <h1 className="hero__title">
               {page.hero_headline || page.store_name || "Mi tienda"}
@@ -62,34 +74,26 @@ export default function StorePage() {
             )}
             <button
               className="hero__cta"
+              style={{ borderRadius: `${tc.hero_btn_radius ?? 99}px` }}
               onClick={() => document.querySelector(".products-section")?.scrollIntoView({ behavior: "smooth" })}
             >
-              Ver productos <ChevronRight size={16} />
+              {tc.hero_btn_text || "Ver productos"} <ChevronRight size={16} />
             </button>
 
-            <div className="hero__trust">
-              <span className="hero__trust-item"><ShieldCheck size={13} /> Pago seguro</span>
-              <span className="hero__trust-sep">·</span>
-              <span className="hero__trust-item"><Truck size={13} /> Envíos a todo el país</span>
-              <span className="hero__trust-sep">·</span>
-              <span className="hero__trust-item"><MessageCircle size={13} /> Atención personalizada</span>
-            </div>
+            {tc.show_trust_badges !== false && (
+              <div className="hero__trust">
+                <span className="hero__trust-item"><ShieldCheck size={13} /> Pago seguro</span>
+                <span className="hero__trust-sep">·</span>
+                <span className="hero__trust-item"><Truck size={13} /> Envíos a todo el país</span>
+                <span className="hero__trust-sep">·</span>
+                <span className="hero__trust-item"><MessageCircle size={13} /> Atención personalizada</span>
+              </div>
+            )}
           </div>
-
-          {page.hero_image_url && (
-            <div className="hero__img-wrap">
-              <img
-                src={page.hero_image_url}
-                alt={page.store_name || ""}
-                className="hero__img"
-                onError={e => { e.target.parentElement.style.display = "none"; }}
-              />
-            </div>
-          )}
         </div>
         <div className="hero__wave">
           <svg viewBox="0 0 1440 80" preserveAspectRatio="none">
-            <path d="M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z" fill="#fafafa" />
+            <path d="M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z" fill={page.color_bg || "#fafafa"} />
           </svg>
         </div>
       </section>
@@ -98,22 +102,24 @@ export default function StorePage() {
       <main className="store-main">
 
         {/* Search bar */}
-        <div className="search-bar-wrap">
-          <div className="search-bar">
-            <Search size={16} className="search-bar__icon" />
-            <input
-              className="search-bar__input"
-              placeholder="Buscar productos..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
-              <button className="search-bar__clear" onClick={() => setSearch("")}>
-                <X size={14} />
-              </button>
-            )}
+        {tc.show_search_bar !== false && (
+          <div className="search-bar-wrap">
+            <div className="search-bar">
+              <Search size={16} className="search-bar__icon" />
+              <input
+                className="search-bar__input"
+                placeholder="Buscar productos..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && (
+                <button className="search-bar__clear" onClick={() => setSearch("")}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Discount banner */}
         <DiscountBanner />
@@ -122,7 +128,11 @@ export default function StorePage() {
         <section className="products-section">
           <div className="products-header">
             <h2 className="products-header__title">
-              {search ? `Resultados para "${search}"` : catFilter ? categories.find(c => c.id === catFilter)?.name || "Productos" : "Todos los productos"}
+              {search
+                ? `Resultados para "${search}"`
+                : catFilter
+                  ? categories.find(c => c.id === catFilter)?.name || "Productos"
+                  : tc.products_section_title || "Todos los productos"}
             </h2>
             <span className="products-header__count">
               {filtered.length} {filtered.length === 1 ? "producto" : "productos"}
@@ -157,7 +167,10 @@ export default function StorePage() {
               <button className="btn-ghost" onClick={() => setSearch("")}>Limpiar búsqueda</button>
             </div>
           ) : (
-            <div className="products-grid">
+            <div
+              className="products-grid"
+              style={{ '--products-cols': tc.products_cols ?? 3 }}
+            >
               {filtered.map((p, i) => (
                 <ProductCard
                   key={p.id}

@@ -72,6 +72,11 @@ export default function App() {
         if (pg.color_text)      root.style.setProperty("--store-text",        pg.color_text);
         root.style.setProperty("--card-radius", `${pg.card_border_radius ?? 16}px`);
         root.style.setProperty("--card-shadow", pg.card_show_shadow !== false ? "var(--shadow-sm)" : "none");
+        const tc = pg.theme_config || {};
+        root.style.setProperty("--btn-radius", `${tc.btn_radius ?? 8}px`);
+        root.style.setProperty("--hero-overlay-opacity", (tc.hero_overlay_opacity ?? 50) / 100);
+        if (tc.footer_bg) root.style.setProperty("--footer-bg", tc.footer_bg);
+        if (tc.footer_text_color) root.style.setProperty("--footer-text-color", tc.footer_text_color);
         if (pg.font_family) {
           const link = document.createElement("link");
           link.rel  = "stylesheet";

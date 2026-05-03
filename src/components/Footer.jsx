@@ -3,13 +3,20 @@ import { useStore } from "../context/StoreContext";
 
 export default function Footer() {
   const { page } = useStore();
+  const tc = page?.theme_config || {};
 
   const wa = page.whatsapp
     ? `https://wa.me/${page.whatsapp.replace(/\D/g, "")}`
     : null;
 
   return (
-    <footer className="footer">
+    <footer
+      className="footer"
+      style={{
+        ...(tc.footer_bg ? { background: tc.footer_bg } : {}),
+        ...(tc.footer_text_color ? { color: tc.footer_text_color } : {}),
+      }}
+    >
       <div className="footer__inner">
         <div className="footer__left">
           <div className="footer__brand">
@@ -20,6 +27,9 @@ export default function Footer() {
               <p className="footer__name">{page.store_name || "Mi tienda"}</p>
               {page.store_description && (
                 <p className="footer__desc">{page.store_description}</p>
+              )}
+              {tc.footer_tagline && (
+                <p className="footer__tagline">{tc.footer_tagline}</p>
               )}
             </div>
           </div>
