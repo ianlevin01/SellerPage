@@ -47,22 +47,23 @@ export default function StorePage() {
       <Navbar />
 
       {/* ── Hero ──────────────────────────────────────────── */}
-      <section
-        className={`hero${tc.hero_bg_type === "image" && page.hero_image_url ? " hero--img-bg" : ""}`}
-        style={tc.hero_bg_type === "image" && page.hero_image_url
-          ? { backgroundImage: `url(${page.hero_image_url})` }
-          : undefined
-        }
-      >
-        {tc.hero_bg_type !== "image" && (
+      <section className="hero">
+        {tc.hero_bg_type === "image" && page.hero_image_url ? (
+          <>
+            <img
+              src={page.hero_image_url}
+              alt=""
+              aria-hidden="true"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }}
+            />
+            <div className="hero__overlay" />
+          </>
+        ) : (
           <div className="hero__shapes" aria-hidden="true">
             <div className="hero__shape hero__shape--1" />
             <div className="hero__shape hero__shape--2" />
             <div className="hero__shape hero__shape--3" />
           </div>
-        )}
-        {tc.hero_bg_type === "image" && page.hero_image_url && (
-          <div className="hero__overlay" />
         )}
         <div className="hero__inner">
           <div className="hero__content">
