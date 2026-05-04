@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+}
 import client from "./api/client";
 import { StoreProvider } from "./context/StoreContext";
 import { hexToRgb, darkenHex, lightenHex } from "./utils/color";
@@ -121,6 +127,7 @@ export default function App() {
         <PaymentResult result={paymentResult} onClose={() => setPaymentResult(null)} />
       )}
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           <Route path="/"               element={<StorePage   slug={slug} />} />
           <Route path="/product/:id"    element={<ProductPage slug={slug} />} />

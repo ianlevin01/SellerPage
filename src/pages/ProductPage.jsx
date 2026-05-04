@@ -1,17 +1,40 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Minus, ShoppingCart, Zap, Tag, Check, ChevronRight, TrendingDown } from "lucide-react";
+import { ArrowLeft, Plus, Minus, ShoppingCart, Zap, Tag, Check, ChevronRight, TrendingDown, Star } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
+import client from "../api/client";
 import Navbar  from "../components/Navbar";
 import Footer  from "../components/Footer";
+
+function StarRow({ rating }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 2 }}>
+      {[1,2,3,4,5].map(i => (
+        <Star key={i} size={14}
+          fill={i <= rating ? "var(--brand)" : "none"}
+          stroke={i <= rating ? "var(--brand)" : "#ccc"} />
+      ))}
+    </span>
+  );
+}
 
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { products, cart, addToCart, updateQty, discountResult, discount, cartCount } = useStore();
-  const [imgIdx, setImgIdx]   = useState(0);
-  const [added, setAdded]     = useState(false);
+  const { products, page, cart, addToCart, updateQty, discountResult, discount, cartCount } = useStore();
+  const [imgIdx,   setImgIdx]   = useState(0);
+  const [added,    setAdded]    = useState(false);
+  const [reviews,  setReviews]  = useState([]);
+  const [showAll,  setShowAll]  = useState(false);
+  const reviewsRef = useRef(null);
+
+  useEffect(() => {
+    if (!page?.slug || !id) return;
+    client.get(`/seller/store/public/${page.slug}/products/${id}/reviews`)
+      .then(res => setReviews(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setReviews([]));
+  }, [page?.slug, id]);
 
   const product = products.find(p => String(p.id) === String(id));
   if (!product) {
@@ -30,6 +53,9 @@ export default function ProductPage() {
   const name      = product.custom_name || product.name;
   const desc      = product.custom_desc  || product.description;
   const cartItem  = cart.find(i => i.id === product.id);
+
+  const avgRating    = reviews.length ? Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) : 0;
+  const visibleReviews = showAll ? reviews : reviews.slice(0, 3);
   const discItem  = discountResult.items.find(i => i.id === product.id);
   const basePrice = Number(product.precio_venta);
   const effPrice  = discItem?.effectivePrice ?? basePrice;
@@ -102,6 +128,30 @@ export default function ProductPage() {
           {/* ── Right: Details ───────────────────────────── */}
           <div className="product-details">
             <h1 className="product-details__name">{name}</h1>
+
+            {/* Average rating */}
+            {reviews.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ display: "inline-flex", gap: 2 }}>
+                  {[1,2,3,4,5].map(i => (
+                    <Star key={i} size={15}
+                      fill={i <= avgRating ? "#f59e0b" : "none"}
+                      stroke={i <= avgRating ? "#f59e0b" : "#d1d5db"} />
+                  ))}
+                </span>
+                <span style={{ fontSize: ".8125rem", color: "var(--store-text-muted, #6b7280)" }}>
+                  ({reviews.length})
+                </span>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                    fontSize: ".8125rem", color: "var(--brand)", textDecoration: "underline" }}
+                  onClick={() => reviewsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                >
+                  ver reseñas
+                </button>
+              </div>
+            )}
 
             {/* Price block */}
             <div className="product-details__price-block">
@@ -218,6 +268,47 @@ export default function ProductPage() {
           </div>
         </div>
       </main>
+
+      {reviews.length > 0 && (
+        <section ref={reviewsRef} className="store-main" style={{ paddingTop: 0 }}>
+          <div style={{ maxWidth: 700, margin: "0 auto" }}>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+              <Star size={18} fill="#f59e0b" stroke="#f59e0b" />
+              Opiniones de clientes
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {visibleReviews.map((r, i) => (
+                <div key={i} style={{
+                  background: "var(--surface, #fff)",
+                  border: "1px solid var(--border, #e5e7eb)",
+                  borderRadius: "var(--card-radius, 12px)",
+                  padding: "16px 18px",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontWeight: 600, fontSize: ".875rem" }}>{r.author_name}</span>
+                    <StarRow rating={r.rating} />
+                  </div>
+                  <p style={{ margin: 0, fontSize: ".875rem", color: "var(--store-text, #333)", lineHeight: 1.6 }}>
+                    {r.comment}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {reviews.length > 3 && !showAll && (
+              <button
+                type="button"
+                style={{ marginTop: 16, display: "block", width: "100%", padding: "10px 0",
+                  background: "none", border: "1px solid var(--border, #e5e7eb)",
+                  borderRadius: "var(--card-radius, 12px)", cursor: "pointer",
+                  fontSize: ".875rem", color: "var(--brand)", fontWeight: 600 }}
+                onClick={() => setShowAll(true)}
+              >
+                Ver más ({reviews.length - 3} reseñas más)
+              </button>
+            )}
+          </div>
+        </section>
+      )}
 
       <Footer />
     </div>

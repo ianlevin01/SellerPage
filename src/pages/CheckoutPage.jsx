@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ShoppingBag, Truck, User, CreditCard,
-  Trash2, Plus, Minus, Check, Zap, ChevronRight, Loader2, MapPin, Building2, MessageSquare
+  Trash2, Plus, Minus, Check, Zap, ChevronRight, Loader2, MapPin,
+  Building2, MessageSquare, Package, Phone,
 } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
@@ -26,7 +27,7 @@ const AR_PROVINCES = [
 
 const EMPTY_SHIPPING = {
   postal_code:    "",
-  type:           null,    // 'home' | 'branch'
+  type:           null,    // 'home' | 'branch' | 'flete' | 'pickup'
   street:         "",
   street_number:  "",
   floor_apt:      "",
@@ -38,7 +39,12 @@ const EMPTY_SHIPPING = {
   service_code:   "",
   service_name:   "",
   amount:         0,
+  transport_company_id:   "",
+  transport_company_name: "",
+  contact_phone:  "",
 };
+
+const SEÑA = 5000;
 
 const EMPTY_CUSTOMER = {
   email:      "",
@@ -72,6 +78,14 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
   const [agencies,        setAgencies]        = useState([]);
   const [fetchingAgencies,setFetchingAgencies]= useState(false);
   const [errors,          setErrors]          = useState({});
+  const [customExpanded,  setCustomExpanded]  = useState(["flete", "pickup"].includes(shipping.type));
+  const [transportCos,    setTransportCos]    = useState([]);
+
+  useEffect(() => {
+    client.get(`/seller/store/public/${slug}/transport-companies`)
+      .then(res => setTransportCos(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setTransportCos([]));
+  }, [slug]);
 
   const homeRates   = rates.filter(r => r.home_delivery);
   const branchRates = rates.filter(r => r.branch_pickup);
@@ -121,20 +135,31 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
   }
 
   function selectType(type) {
-    if (type === "separate") {
-      setShipping(s => ({ ...s, type: "separate", service_code: "", service_name: "A coordinar con el vendedor", amount: 0 }));
+    if (type === "custom") {
+      setCustomExpanded(true);
       return;
     }
+    if (type === "flete") {
+      setShipping(s => ({ ...s, type: "flete", service_code: "", service_name: "Flete", amount: 0, transport_company_id: "", transport_company_name: "" }));
+      setCustomExpanded(true);
+      return;
+    }
+    if (type === "pickup") {
+      setShipping(s => ({ ...s, type: "pickup", service_code: "", service_name: "Pasar a buscar", amount: 0, transport_company_id: "", transport_company_name: "" }));
+      setCustomExpanded(true);
+      return;
+    }
+    setCustomExpanded(false);
     const defaultRate = type === "home"
       ? (homeRates[0]   || { code: "", name: "", price: 0 })
       : (branchRates[0] || { code: "", name: "", price: 0 });
-
     setShipping(s => ({
       ...s,
       type,
       service_code: defaultRate.code,
       service_name: defaultRate.name,
       amount:       defaultRate.price,
+      transport_company_id: "", transport_company_name: "", contact_phone: "",
     }));
   }
 
@@ -156,8 +181,12 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
       if (!shipping.city.trim())              e.city = "Ingresá la ciudad";
       if (!shipping.province)                 e.province = "Seleccioná la provincia";
     }
-    if (shipping.type === "branch" && !shipping.branch_id) e.branch = "Seleccioná una sucursal";
-    // "separate" requires no address
+    if (shipping.type === "branch" && !shipping.branch_id)
+      e.branch = "Seleccioná una sucursal";
+    if (shipping.type === "flete" && !shipping.transport_company_id)
+      e.transport = "Seleccioná una empresa de transporte";
+    if ((shipping.type === "flete" || shipping.type === "pickup") && !shipping.contact_phone?.trim())
+      e.contact_phone = "Ingresá tu teléfono de contacto";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -273,19 +302,58 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
 
         <button
           type="button"
-          onClick={() => selectType("separate")}
+          onClick={() => selectType("custom")}
           style={{
             flex: 1, minWidth: 140, padding: "14px 16px", borderRadius: 10, cursor: "pointer",
-            border: `2px solid ${shipping.type === "separate" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
-            background: shipping.type === "separate" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
+            border: `2px solid ${customExpanded ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
+            background: customExpanded ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
             display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
           }}
         >
-          <MessageSquare size={20} color={shipping.type === "separate" ? "var(--brand, #6366f1)" : undefined} />
-          <strong style={{ fontSize: ".875rem" }}>Coordinar con el vendedor</strong>
-          <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>Sin costo adicional</span>
+          <MessageSquare size={20} color={customExpanded ? "var(--brand, #6366f1)" : undefined} />
+          <strong style={{ fontSize: ".875rem" }}>Envío personalizado</strong>
+          <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>Coordinar con el vendedor</span>
         </button>
       </div>
+
+      {/* Sub-opciones de envío personalizado */}
+      {customExpanded && (
+        <div style={{ display: "flex", gap: 10, marginBottom: 16, marginLeft: 4 }}>
+          <button
+            type="button"
+            onClick={() => selectType("flete")}
+            style={{
+              flex: 1, padding: "12px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+              border: `2px solid ${shipping.type === "flete" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
+              background: shipping.type === "flete" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
+              display: "flex", alignItems: "center", gap: 10,
+            }}
+          >
+            <Truck size={18} color={shipping.type === "flete" ? "var(--brand, #6366f1)" : "var(--text-secondary)"} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: ".875rem" }}>Flete</div>
+              <div style={{ fontSize: ".78rem", color: "var(--text-secondary)" }}>Empresa de transporte</div>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => selectType("pickup")}
+            style={{
+              flex: 1, padding: "12px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+              border: `2px solid ${shipping.type === "pickup" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
+              background: shipping.type === "pickup" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
+              display: "flex", alignItems: "center", gap: 10,
+            }}
+          >
+            <Package size={18} color={shipping.type === "pickup" ? "var(--brand, #6366f1)" : "var(--text-secondary)"} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: ".875rem" }}>Pasar a buscar</div>
+              <div style={{ fontSize: ".78rem", color: "var(--text-secondary)" }}>Retiro en el local</div>
+            </div>
+          </button>
+        </div>
+      )}
+
       {errors.type && <span className="form-error" style={{ display: "block", marginBottom: 12 }}>{errors.type}</span>}
 
       {/* Rate selector (if multiple options for chosen type) */}
@@ -419,6 +487,65 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
         </div>
       )}
 
+      {/* Flete: transport company picker */}
+      {shipping.type === "flete" && (
+        <div className="checkout-form" style={{ marginTop: 4 }}>
+          <div className={`form-field ${errors.transport ? "form-field--error" : ""}`}>
+            <label className="form-label">Empresa de transporte *</label>
+            <select
+              className="form-input"
+              value={shipping.transport_company_id}
+              onChange={e => {
+                const opt = e.target.options[e.target.selectedIndex];
+                setShipping(s => ({
+                  ...s,
+                  transport_company_id:   e.target.value,
+                  transport_company_name: opt.text,
+                  service_name:           opt.text || "Flete",
+                }));
+              }}
+            >
+              <option value="">Seleccioná una empresa</option>
+              {transportCos.map(c => (
+                <option key={c.id} value={String(c.id)}>{c.name}</option>
+              ))}
+            </select>
+            {errors.transport && <span className="form-error">{errors.transport}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Contact phone for flete/pickup */}
+      {(shipping.type === "flete" || shipping.type === "pickup") && (
+        <div className="checkout-form" style={{ marginTop: 8 }}>
+          <div style={{
+            background: "var(--surface-2, #f8f8f8)",
+            border: "1px solid var(--border, #e2e2e2)",
+            borderRadius: 10, padding: "12px 16px", marginBottom: 12,
+            fontSize: ".875rem", color: "var(--text-secondary)",
+          }}>
+            {shipping.type === "flete"
+              ? "El vendedor coordinará el flete con vos una vez recibido el pedido."
+              : "El vendedor te indicará la dirección y horarios para pasar a retirar."}
+            {" "}Pagás una <strong>seña de ${fmt(SEÑA)}</strong> para confirmar el pedido.
+          </div>
+          <div className={`form-field ${errors.contact_phone ? "form-field--error" : ""}`}>
+            <label className="form-label"><Phone size={14} style={{ verticalAlign: "middle" }} /> Teléfono de contacto *</label>
+            <input
+              className="form-input"
+              type="tel"
+              placeholder="+54 11 1234-5678"
+              value={shipping.contact_phone}
+              onChange={e => {
+                setShipping(s => ({ ...s, contact_phone: e.target.value }));
+                if (errors.contact_phone) setErrors(p => ({ ...p, contact_phone: "" }));
+              }}
+            />
+            {errors.contact_phone && <span className="form-error">{errors.contact_phone}</span>}
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
         <button className="btn-ghost" style={{ flex: "0 0 auto" }} onClick={() => setPhase("input")}>
@@ -451,10 +578,12 @@ export default function CheckoutPage({ slug }) {
   const [sending,  setSending]  = useState(false);
   const [success,  setSuccess]  = useState(null);
 
-  const subtotal     = discountResult.subtotal ?? 0;
-  const hasDisc      = totalSaved > 0.01;
-  const shippingAmt  = shipping.amount || 0;
-  const grandTotal   = finalTotal + shippingAmt;
+  const subtotal        = discountResult.subtotal ?? 0;
+  const hasDisc         = totalSaved > 0.01;
+  const shippingAmt     = shipping.amount || 0;
+  const grandTotal      = finalTotal + shippingAmt;
+  const isCustomShip    = shipping.type === "flete" || shipping.type === "pickup";
+  const payableTotal    = isCustomShip ? SEÑA : grandTotal;
 
   // ── Validación step 3 ──────────────────────────────────────────────────────
   function validateStep3() {
@@ -495,20 +624,23 @@ export default function CheckoutPage({ slug }) {
           unit_price: i.effectivePrice,
         })),
         shipping: {
-          type:          shipping.type,
-          postal_code:   shipping.postal_code,
-          street:        shipping.street,
-          street_number: shipping.street_number,
-          floor_apt:     shipping.floor_apt,
-          city:          shipping.city,
-          province:      shipping.province,
-          branch_id:     shipping.branch_id,
-          branch_name:   shipping.branch_name,
-          service_code:  shipping.service_code,
-          service_name:  shipping.service_name,
-          amount:        shippingAmt,
+          type:                   shipping.type,
+          postal_code:            shipping.postal_code,
+          street:                 shipping.street,
+          street_number:          shipping.street_number,
+          floor_apt:              shipping.floor_apt,
+          city:                   shipping.city,
+          province:               shipping.province,
+          branch_id:              shipping.branch_id,
+          branch_name:            shipping.branch_name,
+          service_code:           shipping.service_code,
+          service_name:           shipping.service_name,
+          amount:                 shippingAmt,
+          transport_company_id:   shipping.transport_company_id   || null,
+          transport_company_name: shipping.transport_company_name || null,
+          contact_phone:          shipping.contact_phone          || null,
         },
-        total: grandTotal,
+        total: payableTotal,
       });
     } catch (err) {
       const status    = err.response?.status;
@@ -789,9 +921,11 @@ export default function CheckoutPage({ slug }) {
                   <div className="pay-summary-card__row">
                     <Truck size={14} />
                     <span>
-                      {shipping.type === "home"     ? "Envío a domicilio"
-                      : shipping.type === "branch"  ? "Retiro en sucursal"
-                      :                               "Coordinar envío con el vendedor"}
+                      {shipping.type === "home"   ? "Envío a domicilio"
+                      : shipping.type === "branch" ? "Retiro en sucursal"
+                      : shipping.type === "flete"  ? `Flete${shipping.transport_company_name ? ` — ${shipping.transport_company_name}` : ""}`
+                      : shipping.type === "pickup" ? "Pasar a buscar"
+                      :                              "Envío personalizado"}
                     </span>
                   </div>
                   {shipping.type === "home" && (
@@ -827,22 +961,33 @@ export default function CheckoutPage({ slug }) {
 
               {/* Totales */}
               <div className="pay-totals">
-                {hasDisc && (
+                {!isCustomShip && hasDisc && (
                   <div className="pay-totals__row pay-totals__row--disc">
                     <span><Zap size={13} /> Descuento total</span>
                     <span>−${fmt(totalSaved)}</span>
                   </div>
                 )}
-                {shippingAmt > 0 && (
+                {!isCustomShip && shippingAmt > 0 && (
                   <div className="pay-totals__row">
                     <span><Truck size={13} /> {shipping.service_name || "Envío"}</span>
                     <span>${fmt(shippingAmt)}</span>
                   </div>
                 )}
+                {isCustomShip && (
+                  <div className="pay-totals__row" style={{ fontSize: ".82rem", color: "var(--text-secondary)" }}>
+                    <span>Total del pedido</span>
+                    <span>${fmt(grandTotal)}</span>
+                  </div>
+                )}
                 <div className="pay-totals__row pay-totals__row--final">
-                  <span>Total a pagar</span>
-                  <span>${fmt(grandTotal)}</span>
+                  <span>{isCustomShip ? "Seña a pagar ahora" : "Total a pagar"}</span>
+                  <span>${fmt(payableTotal)}</span>
                 </div>
+                {isCustomShip && grandTotal > SEÑA && (
+                  <p style={{ fontSize: ".78rem", color: "var(--text-secondary)", margin: "6px 0 0", lineHeight: 1.4 }}>
+                    El resto del pago (${fmt(grandTotal - SEÑA)}) se coordina con el vendedor al momento de la entrega.
+                  </p>
+                )}
               </div>
 
               {errors.submit && (
@@ -864,7 +1009,7 @@ export default function CheckoutPage({ slug }) {
               >
                 {sending
                   ? <><Loader2 size={18} className="spin" /> Procesando...</>
-                  : <><CreditCard size={18} /> Pagar ${fmt(grandTotal)}</>}
+                  : <><CreditCard size={18} /> {isCustomShip ? `Pagar seña $${fmt(SEÑA)}` : `Pagar $${fmt(payableTotal)}`}</>}
               </button>
 
               <p className="pay-note">
@@ -898,8 +1043,8 @@ export default function CheckoutPage({ slug }) {
                 </div>
               )}
               <div className="aside-total aside-total--main">
-                <span>Total</span>
-                <span>${fmt(grandTotal)}</span>
+                <span>{isCustomShip ? "Seña" : "Total"}</span>
+                <span>${fmt(payableTotal)}</span>
               </div>
             </aside>
           )}
