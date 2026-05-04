@@ -29,12 +29,44 @@ function detectSlug() {
   return sessionStorage.getItem("storeSlug") || null;
 }
 
+function applyPageTheme(pg) {
+  const root  = document.documentElement;
+  const color = pg.banner_color || "#4db81a";
+  root.style.setProperty("--brand",       color);
+  root.style.setProperty("--brand-dark",  darkenHex(color, 30));
+  root.style.setProperty("--brand-light", lightenHex(color, 170));
+  root.style.setProperty("--brand-rgb",   hexToRgb(color));
+  if (pg.color_secondary) root.style.setProperty("--brand-secondary", pg.color_secondary);
+  if (pg.color_bg)        root.style.setProperty("--store-bg",        pg.color_bg);
+  if (pg.color_text)      root.style.setProperty("--store-text",      pg.color_text);
+  root.style.setProperty("--card-radius", `${pg.card_border_radius ?? 16}px`);
+  root.style.setProperty("--card-shadow", pg.card_show_shadow !== false ? "var(--shadow-sm)" : "none");
+  const tc = pg.theme_config || {};
+  root.style.setProperty("--btn-radius", `${tc.btn_radius ?? 8}px`);
+  root.style.setProperty("--hero-overlay-opacity", (tc.hero_overlay_opacity ?? 50) / 100);
+  if (tc.footer_bg)         root.style.setProperty("--footer-bg",         tc.footer_bg);
+  if (tc.footer_text_color) root.style.setProperty("--footer-text-color", tc.footer_text_color);
+  if (pg.font_family) {
+    root.style.setProperty("--font-body", `'${pg.font_family}', sans-serif`);
+  }
+}
+
 export default function App() {
   const slug = detectSlug();
   const [storeData, setStoreData] = useState(null);
   const [loading, setLoading]     = useState(true);
   const [notFound, setNotFound]   = useState(false);
   const [paymentResult, setPaymentResult] = useState(null); // { status, payment_id }
+
+  // Real-time preview updates from the SellerSystem editor
+  useEffect(() => {
+    function handler(e) {
+      if (e.data?.type !== "ventaz_preview") return;
+      applyPageTheme(e.data.payload || {});
+    }
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   // Detecta retorno desde el checkout de MercadoPago
   useEffect(() => {
@@ -59,30 +91,14 @@ export default function App() {
     client.get(`/seller/store/public/${slug}`)
       .then(res => {
         setStoreData(res.data);
-        const pg    = res.data.page || {};
-        const color = pg.banner_color || "#4db81a";
+        const pg = res.data.page || {};
         document.title = pg.store_name || "Tienda";
-        const root = document.documentElement;
-        root.style.setProperty("--brand",       color);
-        root.style.setProperty("--brand-dark",  darkenHex(color, 30));
-        root.style.setProperty("--brand-light", lightenHex(color, 170));
-        root.style.setProperty("--brand-rgb",   hexToRgb(color));
-        if (pg.color_secondary) root.style.setProperty("--brand-secondary", pg.color_secondary);
-        if (pg.color_bg)        root.style.setProperty("--store-bg",         pg.color_bg);
-        if (pg.color_text)      root.style.setProperty("--store-text",        pg.color_text);
-        root.style.setProperty("--card-radius", `${pg.card_border_radius ?? 16}px`);
-        root.style.setProperty("--card-shadow", pg.card_show_shadow !== false ? "var(--shadow-sm)" : "none");
-        const tc = pg.theme_config || {};
-        root.style.setProperty("--btn-radius", `${tc.btn_radius ?? 8}px`);
-        root.style.setProperty("--hero-overlay-opacity", (tc.hero_overlay_opacity ?? 50) / 100);
-        if (tc.footer_bg) root.style.setProperty("--footer-bg", tc.footer_bg);
-        if (tc.footer_text_color) root.style.setProperty("--footer-text-color", tc.footer_text_color);
+        applyPageTheme(pg);
         if (pg.font_family) {
           const link = document.createElement("link");
           link.rel  = "stylesheet";
           link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(pg.font_family)}:wght@400;500;600;700&display=swap`;
           document.head.appendChild(link);
-          root.style.setProperty("--font-body", `'${pg.font_family}', sans-serif`);
         }
       })
       .catch(() => setNotFound(true))
