@@ -62,7 +62,10 @@ export default function App() {
   useEffect(() => {
     function handler(e) {
       if (e.data?.type !== "ventaz_preview") return;
-      applyPageTheme(e.data.payload || {});
+      const payload = e.data.payload || {};
+      applyPageTheme(payload);
+      // Also update React state so text content (headline, section title, etc.) re-renders live
+      setStoreData(prev => prev ? { ...prev, page: { ...prev.page, ...payload } } : prev);
     }
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
