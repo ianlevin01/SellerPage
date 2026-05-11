@@ -1,20 +1,28 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import client from "./api/client";
+import { StoreProvider } from "./context/StoreContext";
+import { hexToRgb, darkenHex, lightenHex } from "./utils/color";
+import { initPixel, trackPixel } from "./utils/pixel";
+import StorePage    from "./pages/StorePage";
+import ProductPage  from "./pages/ProductPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import NotFound     from "./pages/NotFound";
+import ChatWidget    from "./components/ChatWidget";
+import PaymentResult  from "./components/PaymentResult";
+import LoadingScreen  from "./components/LoadingScreen";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
 }
-import client from "./api/client";
-import { StoreProvider } from "./context/StoreContext";
-import { hexToRgb, darkenHex, lightenHex } from "./utils/color";
-import StorePage    from "./pages/StorePage";
-import ProductPage  from "./pages/ProductPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import NotFound     from "./pages/NotFound";
-import ChatWidget   from "./components/ChatWidget";
-import PaymentResult from "./components/PaymentResult";
+
+function PixelPageView() {
+  const { pathname } = useLocation();
+  useEffect(() => { trackPixel("PageView"); }, [pathname]);
+  return null;
+}
 
 function detectSlug() {
   const h = window.location.hostname;
@@ -84,7 +92,12 @@ export default function App() {
     if (!paymentId || !slug) return;
 
     client.get(`/seller/purchase/confirm?payment_id=${paymentId}`)
-      .then(res => setPaymentResult(res.data))
+      .then(res => {
+        setPaymentResult(res.data);
+        if (res.data?.status === "approved") {
+          trackPixel("Purchase", { currency: "ARS" });
+        }
+      })
       .catch(() => setPaymentResult({ status: "error" }))
       .finally(() => {
         // Limpia los params de MP de la URL sin recargar la página
@@ -109,16 +122,14 @@ export default function App() {
           link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(pg.font_family)}:wght@400;500;600;700&display=swap`;
           document.head.appendChild(link);
         }
+        const pixelId = res.data.integrations?.meta_pixel?.pixel_id;
+        if (pixelId) initPixel(pixelId);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [slug]);
 
-  if (loading) return (
-    <div className="splash">
-      <div className="splash__spinner" />
-    </div>
-  );
+  if (loading) return <LoadingScreen />;
   if (notFound || !storeData) return <NotFound />;
 
   return (
@@ -128,6 +139,7 @@ export default function App() {
       )}
       <BrowserRouter>
         <ScrollToTop />
+        <PixelPageView />
         <Routes>
           <Route path="/"               element={<StorePage   slug={slug} />} />
           <Route path="/product/:id"    element={<ProductPage slug={slug} />} />

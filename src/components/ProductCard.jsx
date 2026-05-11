@@ -1,25 +1,26 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, Minus, ShoppingCart, Zap } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Truck, Zap, Layers } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
 
 export default function ProductCard({ product, style }) {
-  const { page, cart, addToCart, updateQty, discountResult, discount } = useStore();
+  const { page, cart, addToCart, addComboToCart, updateQty, discountResult, discount } = useStore();
   const cardStyle = page?.theme_config?.card_style || "default";
   const navigate = useNavigate();
+  const isCombo = product.is_combo === true;
 
   const cartItem   = cart.find(i => i.id === product.id);
   const discItem   = discountResult.items.find(i => i.id === product.id);
   const basePrice  = Number(product.precio_venta);
   const effPrice   = discItem?.effectivePrice ?? basePrice;
   const savedUnit  = discItem?.savedPerUnit   ?? 0;
-  const hasDisc    = savedUnit > 0.01;
+  const hasDisc    = !isCombo && savedUnit > 0.01;
   const discPct    = hasDisc ? Math.round((savedUnit / basePrice) * 100) : 0;
   const imgUrl     = (product.images || [])[0] || null;
   const name       = product.custom_name || product.name;
 
-  // Qty-mode: next tier hint
-  const isQty      = discount?.discount_type === "quantity" && discount?.enabled;
+  // Qty-mode: next tier hint (only for regular products)
+  const isQty      = !isCombo && discount?.discount_type === "quantity" && discount?.enabled;
   const tiers      = isQty
     ? [...(discount.tiers || [])].sort((a, b) => Number(a.threshold) - Number(b.threshold))
     : [];
@@ -28,14 +29,19 @@ export default function ProductCard({ product, style }) {
 
   function handleAdd(e) {
     e.stopPropagation();
-    addToCart(product);
+    if (isCombo) addComboToCart(product);
+    else addToCart(product);
+  }
+
+  function handleClick() {
+    if (!isCombo) navigate(`/product/${product.id}`);
   }
 
   return (
     <article
       className={`pcard pcard--${cardStyle}`}
-      style={style}
-      onClick={() => navigate(`/product/${product.id}`)}
+      style={{ ...style, cursor: isCombo ? "default" : "pointer" }}
+      onClick={handleClick}
     >
       {/* Image */}
       <div className="pcard__img-wrap">
@@ -44,11 +50,27 @@ export default function ProductCard({ product, style }) {
           : <div className="pcard__img-ph">📦</div>
         }
 
+        {/* Combo badge */}
+        {isCombo && (
+          <div className="pcard__badge pcard__badge--combo">
+            <Layers size={10} strokeWidth={2.5} />
+            Combo
+          </div>
+        )}
+
         {/* Discount badge */}
         {hasDisc && (
           <div className="pcard__badge">
             <Zap size={10} strokeWidth={2.5} />
             {discPct}% OFF
+          </div>
+        )}
+
+        {/* Free shipping badge */}
+        {product.free_shipping && (
+          <div className="pcard__badge pcard__badge--shipping">
+            <Truck size={10} strokeWidth={2.5} />
+            Envío gratis
           </div>
         )}
 
@@ -75,9 +97,18 @@ export default function ProductCard({ product, style }) {
       <div className="pcard__body">
         <p className="pcard__name">{name}</p>
 
-        {(product.custom_desc || product.description) && (
+        {isCombo && product.products?.length > 0 ? (
+          <p className="pcard__desc">
+            {product.products.map((p, i) => (
+              <span key={p.product_id || i}>
+                {p.quantity > 1 ? `${p.quantity}x ` : ""}{p.name}
+                {i < product.products.length - 1 ? " + " : ""}
+              </span>
+            ))}
+          </p>
+        ) : (product.custom_desc || product.description) ? (
           <p className="pcard__desc">{product.custom_desc || product.description}</p>
-        )}
+        ) : null}
 
         <div className="pcard__price-row">
           {hasDisc ? (

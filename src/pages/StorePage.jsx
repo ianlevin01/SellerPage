@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { Search, X, ChevronRight, ShieldCheck, Truck, MessageCircle } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import Navbar          from "../components/Navbar";
@@ -9,8 +8,7 @@ import ProductCard     from "../components/ProductCard";
 import DiscountBanner  from "../components/DiscountBanner";
 
 export default function StorePage() {
-  const { page, products } = useStore();
-  const navigate = useNavigate();
+  const { page, products, combos } = useStore();
   const tc = page?.theme_config || {};
   const [search, setSearch]     = useState("");
   const [catFilter, setCatFilter] = useState(null);
@@ -20,6 +18,18 @@ export default function StorePage() {
     if (!featuredCats?.length) return products;
     return products.filter(p => featuredCats.includes(p.category_id));
   }, [products, featuredCats]);
+
+  // Normalize combos into product shape so ProductCard can render them uniformly
+  const normalizedCombos = useMemo(() =>
+    (combos || []).map(c => ({
+      ...c,
+      is_combo:     true,
+      custom_name:  c.name,
+      precio_venta: Number(c.custom_price),
+      precio_1:     Number(c.custom_price),
+      images:       c.images || [],
+    })),
+  [combos]);
 
   const categories = useMemo(() => {
     const seen = new Map();
@@ -32,14 +42,21 @@ export default function StorePage() {
   }, [baseProducts]);
 
   const filtered = useMemo(() => {
-    let list = catFilter ? baseProducts.filter(p => p.category_id === catFilter) : baseProducts;
+    // Category filter only applies to regular products; combos always show (unless search hides them)
+    const productList = catFilter ? baseProducts.filter(p => p.category_id === catFilter) : baseProducts;
     const q = search.toLowerCase();
-    if (q) list = list.filter(p =>
-      (p.custom_name || p.name).toLowerCase().includes(q) ||
-      (p.code || "").toLowerCase().includes(q)
-    );
-    return list;
-  }, [baseProducts, search, catFilter]);
+    const filteredProducts = q
+      ? productList.filter(p =>
+          (p.custom_name || p.name).toLowerCase().includes(q) ||
+          (p.code || "").toLowerCase().includes(q)
+        )
+      : productList;
+    const filteredCombos = q
+      ? normalizedCombos.filter(c => c.name.toLowerCase().includes(q))
+      : (catFilter ? [] : normalizedCombos); // hide combos when a category is active
+    // Combos first, then products
+    return [...filteredCombos, ...filteredProducts];
+  }, [baseProducts, normalizedCombos, search, catFilter]);
 
   return (
     <div className="store-root">
@@ -136,7 +153,7 @@ export default function StorePage() {
                   : tc.products_section_title || "Todos los productos"}
             </h2>
             <span className="products-header__count">
-              {filtered.length} {filtered.length === 1 ? "producto" : "productos"}
+              {filtered.length} {filtered.length === 1 ? "artículo" : "artículos"}
             </span>
           </div>
 

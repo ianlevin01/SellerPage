@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Minus, ShoppingCart, Zap, Tag, Check, ChevronRight, TrendingDown, Star } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
+import { trackPixel } from "../utils/pixel";
 import client from "../api/client";
 import Navbar  from "../components/Navbar";
 import Footer  from "../components/Footer";
@@ -35,6 +36,18 @@ export default function ProductPage() {
       .then(res => setReviews(Array.isArray(res.data) ? res.data : []))
       .catch(() => setReviews([]));
   }, [page?.slug, id]);
+
+  useEffect(() => {
+    const product = products.find(p => String(p.id) === String(id));
+    if (!product) return;
+    trackPixel("ViewContent", {
+      value:        Number(product.precio_venta || 0),
+      currency:     "ARS",
+      content_ids:  [product.id],
+      content_type: "product",
+      content_name: product.custom_name || product.name,
+    });
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const product = products.find(p => String(p.id) === String(id));
   if (!product) {

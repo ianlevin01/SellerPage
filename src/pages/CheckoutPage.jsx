@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
+import { trackPixel } from "../utils/pixel";
 import client from "../api/client";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -70,7 +71,7 @@ function diagnoseMPResponse(data) {
 
 // ─── Sub-component: shipping step ─────────────────────────────────────────────
 
-function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNext }) {
+function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNext, allFree }) {
   const [phase,           setPhase]           = useState("input");   // 'input' | 'method'
   const [rates,           setRates]           = useState([]);
   const [shippingAvail,   setShippingAvail]   = useState(true);
@@ -243,6 +244,17 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
   return (
     <div className="checkout-step" key="shipping-method">
       <h2 className="checkout-step__title">Elegí cómo recibir tu pedido</h2>
+
+      {allFree && (
+        <div style={{
+          background: "#d1fae5", border: "1px solid #6ee7b7",
+          borderRadius: 10, padding: "12px 16px", marginBottom: 16,
+          fontSize: ".875rem", color: "#065f46", display: "flex", gap: 8, alignItems: "center",
+        }}>
+          <Truck size={16} />
+          <span><strong>¡Envío gratis!</strong> Todos los productos en tu carrito tienen envío sin costo.</span>
+        </div>
+      )}
 
       {!shippingAvail && rates.length === 0 && (
         <div style={{
@@ -568,7 +580,7 @@ export default function CheckoutPage({ slug }) {
   const navigate = useNavigate();
   const {
     cart, discountResult, finalTotal, totalSaved,
-    updateQty, removeFromCart, clearCart,
+    updateQty, removeFromCart, clearCart, allCartFreeShipping,
   } = useStore();
 
   const [step,     setStep]     = useState(1);
@@ -580,7 +592,7 @@ export default function CheckoutPage({ slug }) {
 
   const subtotal        = discountResult.subtotal ?? 0;
   const hasDisc         = totalSaved > 0.01;
-  const shippingAmt     = shipping.amount || 0;
+  const shippingAmt     = allCartFreeShipping ? 0 : (shipping.amount || 0);
   const grandTotal      = finalTotal + shippingAmt;
   const isCustomShip    = shipping.type === "flete" || shipping.type === "pickup";
   const payableTotal    = isCustomShip ? SEÑA : grandTotal;
@@ -618,7 +630,7 @@ export default function CheckoutPage({ slug }) {
           notes:     customer.notes,
         },
         items: discountResult.items.map(i => ({
-          product_id: i.id,
+          product_id: i.is_combo ? null : i.id,
           name:       i.custom_name || i.name,
           quantity:   i.qty,
           unit_price: i.effectivePrice,
@@ -658,11 +670,17 @@ export default function CheckoutPage({ slug }) {
 
     const payUrl = diagnoseMPResponse(res.data);
     if (payUrl) {
+      trackPixel("InitiateCheckout", {
+        value:    grandTotal,
+        currency: "ARS",
+        num_items: cart.reduce((s, i) => s + i.qty, 0),
+      });
       window.location.href = payUrl;
       return;
     }
 
     if (res.data.order_number || res.data.numero) {
+      trackPixel("Purchase", { value: grandTotal, currency: "ARS" });
       clearCart();
       setSuccess(res.data);
       setSending(false);
@@ -797,6 +815,12 @@ export default function CheckoutPage({ slug }) {
                         <span>−${fmt(totalSaved)}</span>
                       </div>
                     )}
+                    {allCartFreeShipping && (
+                      <div className="cart-summary__row" style={{ color: "var(--success, #059669)" }}>
+                        <span><Truck size={13} /> Envío</span>
+                        <span>Gratis</span>
+                      </div>
+                    )}
                     <div className="cart-summary__row cart-summary__row--total">
                       <span>Total productos</span><span>${fmt(finalTotal)}</span>
                     </div>
@@ -819,6 +843,7 @@ export default function CheckoutPage({ slug }) {
               customer={customer}
               setCustomer={setCustomer}
               onNext={() => setStep(3)}
+              allFree={allCartFreeShipping}
             />
           )}
 
@@ -967,7 +992,13 @@ export default function CheckoutPage({ slug }) {
                     <span>−${fmt(totalSaved)}</span>
                   </div>
                 )}
-                {!isCustomShip && shippingAmt > 0 && (
+                {!isCustomShip && allCartFreeShipping && (
+                  <div className="pay-totals__row" style={{ color: "var(--success, #059669)" }}>
+                    <span><Truck size={13} /> Envío</span>
+                    <span>Gratis</span>
+                  </div>
+                )}
+                {!isCustomShip && !allCartFreeShipping && shippingAmt > 0 && (
                   <div className="pay-totals__row">
                     <span><Truck size={13} /> {shipping.service_name || "Envío"}</span>
                     <span>${fmt(shippingAmt)}</span>
@@ -1036,12 +1067,17 @@ export default function CheckoutPage({ slug }) {
                   <span>−${fmt(totalSaved)}</span>
                 </div>
               )}
-              {shippingAmt > 0 && (
+              {allCartFreeShipping ? (
+                <div className="aside-total" style={{ color: "var(--success, #059669)" }}>
+                  <span><Truck size={12} /> Envío</span>
+                  <span>Gratis</span>
+                </div>
+              ) : shippingAmt > 0 ? (
                 <div className="aside-total">
                   <span><Truck size={12} /> Envío</span>
                   <span>${fmt(shippingAmt)}</span>
                 </div>
-              )}
+              ) : null}
               <div className="aside-total aside-total--main">
                 <span>{isCustomShip ? "Seña" : "Total"}</span>
                 <span>${fmt(payableTotal)}</span>
