@@ -6,6 +6,7 @@ import PromoBar        from "../components/PromoBar";
 import Footer          from "../components/Footer";
 import ProductCard     from "../components/ProductCard";
 import DiscountBanner  from "../components/DiscountBanner";
+import { assetSrc } from "../utils/asset";
 
 export default function StorePage() {
   const { page, products, combos } = useStore();
@@ -73,7 +74,7 @@ export default function StorePage() {
         {tc.hero_bg_type === "image" && page.hero_image_url ? (
           <>
             <img
-              src={page.hero_image_url}
+              src={assetSrc(page.hero_image_url)}
               alt=""
               aria-hidden="true"
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }}

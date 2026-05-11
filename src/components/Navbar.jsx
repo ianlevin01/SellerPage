@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { ShoppingCart, Store } from "lucide-react";
 import { useStore } from "../context/StoreContext";
+import { assetSrc } from "../utils/asset";
 
 export default function Navbar() {
   const { page, cartCount, totalSaved } = useStore();
@@ -12,7 +13,7 @@ export default function Navbar() {
         {/* Logo / Store name */}
         <button className="navbar__brand" onClick={() => navigate("/")}>
           {page.logo_url ? (
-            <img src={page.logo_url} alt={page.store_name || "Logo"} className="navbar__logo-img" />
+            <img src={assetSrc(page.logo_url)} alt={page.store_name || "Logo"} className="navbar__logo-img" />
           ) : (
             <div className="navbar__logo-mark">
               {page.store_name?.[0]?.toUpperCase() || <Store size={14} />}

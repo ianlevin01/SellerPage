@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Minus, ShoppingCart, Zap, Tag, Check, ChevronRight, TrendingDown, Star } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
+import { assetSrc } from "../utils/asset";
 import { trackPixel } from "../utils/pixel";
 import client from "../api/client";
 import Navbar  from "../components/Navbar";
@@ -110,7 +111,7 @@ export default function ProductPage() {
               {images.length > 0 ? (
                 <img
                   className="product-gallery__img"
-                  src={images[imgIdx]}
+                  src={assetSrc(images[imgIdx])}
                   alt={name}
                 />
               ) : (
@@ -131,7 +132,7 @@ export default function ProductPage() {
                     className={`product-gallery__thumb ${i === imgIdx ? "product-gallery__thumb--active" : ""}`}
                     onClick={() => setImgIdx(i)}
                   >
-                    <img src={img} alt={`${name} ${i + 1}`} />
+                    <img src={assetSrc(img)} alt={`${name} ${i + 1}`} />
                   </button>
                 ))}
               </div>

@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Minus, ShoppingCart, Truck, Zap, Layers } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
+import { assetSrc } from "../utils/asset";
 
 export default function ProductCard({ product, style }) {
   const { page, cart, addToCart, addComboToCart, updateQty, discountResult, discount } = useStore();
@@ -17,7 +18,7 @@ export default function ProductCard({ product, style }) {
   const savedUnit  = discItem?.savedPerUnit   ?? 0;
   const hasDisc    = !isCombo && savedUnit > 0.01;
   const discPct    = hasDisc ? Math.round((savedUnit / basePrice) * 100) : 0;
-  const imgUrl     = (product.images || [])[0] || null;
+  const imgUrl     = assetSrc((product.images || [])[0] || "");
   const name       = product.custom_name || product.name;
 
   // Qty-mode: next tier hint (only for regular products)
