@@ -499,6 +499,10 @@ a { color: var(--brand); text-decoration: none; }
   background: var(--brand-secondary, #6366f1);
   box-shadow: 0 2px 8px rgba(99,102,241,.4);
 }
+.pcard__badge--promo {
+  background: #f59e0b;
+  box-shadow: 0 2px 8px rgba(245,158,11,.4);
+}
 
 /* Quick-add overlay */
 .pcard__quick-add {
@@ -696,6 +700,25 @@ a { color: var(--brand); text-decoration: none; }
   margin-top: 8px; font-size: .78rem; color: var(--text-3);
 }
 .pd-disc-hint svg { color: var(--brand); flex-shrink: 0; }
+
+.combo-page-includes {
+  margin-bottom: 24px;
+}
+.combo-page-includes h3 {
+  font-size: .875rem; font-weight: 600; color: var(--text-2);
+  margin-bottom: 10px; text-transform: uppercase; letter-spacing: .04em;
+}
+.combo-page-includes ul {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.combo-page-includes li {
+  font-size: .9375rem; color: var(--text-3);
+  padding: 8px 12px;
+  background: var(--surface, #f9fafb);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+}
 
 .product-details__desc {
   margin-bottom: 28px;

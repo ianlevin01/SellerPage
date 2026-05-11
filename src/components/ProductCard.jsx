@@ -18,6 +18,9 @@ export default function ProductCard({ product, style }) {
   const savedUnit  = discItem?.savedPerUnit   ?? 0;
   const hasDisc    = !isCombo && savedUnit > 0.01;
   const discPct    = hasDisc ? Math.round((savedUnit / basePrice) * 100) : 0;
+  const hasPromo   = !isCombo && !hasDisc && product.promo_enabled && Number(product.promo_price) > 0 && Number(product.promo_price) < basePrice;
+  const promoPrice = hasPromo ? Number(product.promo_price) : null;
+  const promoPct   = hasPromo ? Math.round(((basePrice - promoPrice) / basePrice) * 100) : 0;
   const imgUrl     = assetSrc((product.images || [])[0] || "");
   const name       = product.custom_name || product.name;
 
@@ -36,13 +39,14 @@ export default function ProductCard({ product, style }) {
   }
 
   function handleClick() {
-    if (!isCombo) navigate(`/product/${product.id}`);
+    if (isCombo) navigate(`/combo/${product.id}`);
+    else navigate(`/product/${product.id}`);
   }
 
   return (
     <article
       className={`pcard pcard--${cardStyle} pcard--${cardDensity}`}
-      style={{ ...style, cursor: isCombo ? "default" : "pointer" }}
+      style={{ ...style, cursor: "pointer" }}
       onClick={handleClick}
     >
       {/* Image */}
@@ -60,11 +64,17 @@ export default function ProductCard({ product, style }) {
           </div>
         )}
 
-        {/* Discount badge */}
+        {/* Discount / promo badge */}
         {hasDisc && (
           <div className="pcard__badge">
             <Zap size={10} strokeWidth={2.5} />
             {discPct}% OFF
+          </div>
+        )}
+        {hasPromo && (
+          <div className="pcard__badge pcard__badge--promo">
+            <Zap size={10} strokeWidth={2.5} />
+            {promoPct}% OFF
           </div>
         )}
 
@@ -113,7 +123,12 @@ export default function ProductCard({ product, style }) {
         ) : null}
 
         <div className="pcard__price-row">
-          {hasDisc ? (
+          {hasPromo ? (
+            <>
+              <span className="pcard__price-orig">${fmt(basePrice)}</span>
+              <span className="pcard__price">${fmt(promoPrice)}</span>
+            </>
+          ) : hasDisc ? (
             <>
               <span className="pcard__price-orig">${fmt(basePrice)}</span>
               <span className="pcard__price">${fmt(effPrice)}</span>

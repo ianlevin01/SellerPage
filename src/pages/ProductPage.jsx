@@ -76,6 +76,9 @@ export default function ProductPage() {
   const savedUnit = discItem?.savedPerUnit   ?? 0;
   const hasDisc   = savedUnit > 0.01;
   const discPct   = hasDisc ? Math.round((savedUnit / basePrice) * 100) : 0;
+  const hasPromo  = !hasDisc && product.promo_enabled && Number(product.promo_price) > 0 && Number(product.promo_price) < basePrice;
+  const promoPrice = hasPromo ? Number(product.promo_price) : null;
+  const promoPct  = hasPromo ? Math.round(((basePrice - promoPrice) / basePrice) * 100) : 0;
 
   const hasQty   = discount?.enabled_quantity && (discount?.quantity_tiers?.length ?? 0) > 0;
   const hasPrice = discount?.enabled_price    && (discount?.price_tiers?.length ?? 0) > 0;
@@ -117,9 +120,9 @@ export default function ProductPage() {
               ) : (
                 <div className="product-gallery__ph">📦</div>
               )}
-              {hasDisc && (
+              {(hasDisc || hasPromo) && (
                 <div className="product-gallery__badge">
-                  <Zap size={12} /> {discPct}% OFF
+                  <Zap size={12} /> {hasDisc ? discPct : promoPct}% OFF
                 </div>
               )}
             </div>
@@ -169,7 +172,15 @@ export default function ProductPage() {
 
             {/* Price block */}
             <div className="product-details__price-block">
-              {hasDisc ? (
+              {hasPromo ? (
+                <>
+                  <span className="product-details__price-orig">${fmt(basePrice)}</span>
+                  <span className="product-details__price">${fmt(promoPrice)}</span>
+                  <span className="product-details__saving">
+                    {promoPct}% de descuento
+                  </span>
+                </>
+              ) : hasDisc ? (
                 <>
                   <span className="product-details__price-orig">${fmt(basePrice)}</span>
                   <span className="product-details__price">${fmt(effPrice)}</span>
