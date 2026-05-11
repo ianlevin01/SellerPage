@@ -1,16 +1,11 @@
-import client from "../api/client";
-
-const API_BASE = client.defaults.baseURL || (import.meta.env.DEV ? "http://localhost:3000" : "");
-
 export function assetSrc(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
 
+  // SellerApi debe entregar URLs firmadas en logo_url, hero_image_url e imágenes.
   if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
 
-  if (raw.startsWith("/")) {
-    return API_BASE ? `${API_BASE}${raw}` : raw;
-  }
-
-  return `${API_BASE}/seller/store/media?key=${encodeURIComponent(raw)}`;
+  // Evita que el navegador busque "177.png" o "sellers/..." como archivo local
+  // y tire 404. Si pasa esto, hay que re-subir esa imagen para que quede URL válida.
+  return "";
 }
