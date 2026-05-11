@@ -13,8 +13,8 @@ export default function Footer() {
     <footer
       className="footer"
       style={{
-        ...(tc.footer_bg ? { background: tc.footer_bg } : {}),
-        ...(tc.footer_text_color ? { color: tc.footer_text_color } : {}),
+        background: tc.footer_bg || "var(--footer-bg)",
+        color: tc.footer_text_color || "var(--footer-text-color)",
       }}
     >
       <div className="footer__inner">
@@ -28,9 +28,9 @@ export default function Footer() {
               {page.store_description && (
                 <p className="footer__desc">{page.store_description}</p>
               )}
-              {tc.footer_tagline && (
-                <p className="footer__tagline">{tc.footer_tagline}</p>
-              )}
+              <p className="footer__tagline">
+                {tc.footer_tagline || "Envíos a todo el país · Atención personalizada"}
+              </p>
             </div>
           </div>
 

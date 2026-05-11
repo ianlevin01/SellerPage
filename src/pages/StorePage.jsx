@@ -58,8 +58,13 @@ export default function StorePage() {
     return [...filteredCombos, ...filteredProducts];
   }, [baseProducts, normalizedCombos, search, catFilter]);
 
+  const cardStyle = tc.card_style || "default";
+  const cardDensity = tc.card_density || "normal";
+  const buttonStyle = tc.button_style || "soft";
+  const heroLayout = tc.hero_layout || "center";
+
   return (
-    <div className="store-root">
+    <div className={`store-root store-root--${cardDensity} store-root--buttons-${buttonStyle}`}>
       <PromoBar />
       <Navbar />
 
@@ -82,7 +87,7 @@ export default function StorePage() {
             <div className="hero__shape hero__shape--3" />
           </div>
         )}
-        <div className="hero__inner">
+        <div className={`hero__inner hero__inner--${heroLayout}`}>
           <div className="hero__content">
             <h1 className="hero__title">
               {page.hero_headline || page.store_name || "Mi tienda"}

@@ -46,23 +46,51 @@ function detectSlug() {
 function applyPageTheme(pg) {
   const root  = document.documentElement;
   const color = pg.banner_color || "#4db81a";
+  const tc = pg.theme_config || {};
+
   root.style.setProperty("--brand",       color);
   root.style.setProperty("--brand-dark",  darkenHex(color, 30));
   root.style.setProperty("--brand-light", lightenHex(color, 170));
   root.style.setProperty("--brand-rgb",   hexToRgb(color));
+
   if (pg.color_secondary) root.style.setProperty("--brand-secondary", pg.color_secondary);
-  if (pg.color_bg)        root.style.setProperty("--store-bg",        pg.color_bg);
-  if (pg.color_text)      root.style.setProperty("--store-text",      pg.color_text);
+  root.style.setProperty("--store-bg",   pg.color_bg   || "#fafafa");
+  root.style.setProperty("--store-text", pg.color_text || "#09090b");
+
   root.style.setProperty("--card-radius", `${pg.card_border_radius ?? 16}px`);
   root.style.setProperty("--card-shadow", pg.card_show_shadow !== false ? "var(--shadow-sm)" : "none");
-  const tc = pg.theme_config || {};
-  root.style.setProperty("--btn-radius", `${tc.btn_radius ?? 8}px`);
+
+  root.style.setProperty("--btn-radius", `${tc.btn_radius ?? 14}px`);
+  root.style.setProperty("--hero-btn-radius", `${tc.hero_btn_radius ?? tc.btn_radius ?? 99}px`);
   root.style.setProperty("--hero-overlay-opacity", (tc.hero_overlay_opacity ?? 50) / 100);
-  if (tc.footer_bg)         root.style.setProperty("--footer-bg",         tc.footer_bg);
-  if (tc.footer_text_color) root.style.setProperty("--footer-text-color", tc.footer_text_color);
+  root.style.setProperty("--footer-bg", tc.footer_bg || "#0a0f09");
+  root.style.setProperty("--footer-text-color", tc.footer_text_color || "#ffffff");
+  root.style.setProperty("--products-cols", tc.products_cols ?? 3);
+
   if (pg.font_family) {
     root.style.setProperty("--font-body", `'${pg.font_family}', sans-serif`);
   }
+}
+
+function scrollPreviewTo(target) {
+  const selectors = {
+    footer: ".footer",
+    hero: ".hero",
+    products: ".products-section",
+    catalogo: ".products-section",
+    search: ".search-bar-wrap",
+    header: ".navbar",
+    promo: ".promo-bar",
+  };
+
+  const selector = selectors[target];
+  if (!selector) return;
+
+  requestAnimationFrame(() => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: target === "footer" ? "end" : "start" });
+  });
 }
 
 export default function App() {
@@ -76,11 +104,32 @@ export default function App() {
   useEffect(() => {
     function handler(e) {
       if (e.data?.type !== "ventaz_preview") return;
+
       const payload = e.data.payload || {};
-      applyPageTheme(payload);
-      // Also update React state so text content (headline, section title, etc.) re-renders live
-      setStoreData(prev => prev ? { ...prev, page: { ...prev.page, ...payload } } : prev);
+      const target = payload.__preview_target;
+      const cleanPayload = { ...payload };
+      delete cleanPayload.__preview_target;
+      delete cleanPayload.__preview_section;
+
+      setStoreData(prev => {
+        if (!prev) return prev;
+
+        const nextPage = {
+          ...prev.page,
+          ...cleanPayload,
+          theme_config: {
+            ...(prev.page?.theme_config || {}),
+            ...(cleanPayload.theme_config || {}),
+          },
+        };
+
+        applyPageTheme(nextPage);
+        return { ...prev, page: nextPage };
+      });
+
+      if (target) setTimeout(() => scrollPreviewTo(target), 80);
     }
+
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, []);

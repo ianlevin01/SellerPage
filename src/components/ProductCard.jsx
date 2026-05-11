@@ -6,6 +6,7 @@ import { fmt } from "../utils/discount";
 export default function ProductCard({ product, style }) {
   const { page, cart, addToCart, addComboToCart, updateQty, discountResult, discount } = useStore();
   const cardStyle = page?.theme_config?.card_style || "default";
+  const cardDensity = page?.theme_config?.card_density || "normal";
   const navigate = useNavigate();
   const isCombo = product.is_combo === true;
 
@@ -39,7 +40,7 @@ export default function ProductCard({ product, style }) {
 
   return (
     <article
-      className={`pcard pcard--${cardStyle}`}
+      className={`pcard pcard--${cardStyle} pcard--${cardDensity}`}
       style={{ ...style, cursor: isCombo ? "default" : "pointer" }}
       onClick={handleClick}
     >
