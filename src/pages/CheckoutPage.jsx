@@ -19,6 +19,8 @@ const STEPS = [
   { id: 4, label: "Pago",        icon: CreditCard  },
 ];
 
+const LARGE_ORDER_THRESHOLD = 150000;
+
 const AR_PROVINCES = [
   "Buenos Aires", "Ciudad Autónoma de Buenos Aires", "Catamarca", "Chaco", "Chubut",
   "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja",
@@ -71,7 +73,7 @@ function diagnoseMPResponse(data) {
 
 // ─── Sub-component: shipping step ─────────────────────────────────────────────
 
-function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNext, allFree }) {
+function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNext, allFree, isLargeOrder }) {
   const [phase,           setPhase]           = useState("input");   // 'input' | 'method'
   const [rates,           setRates]           = useState([]);
   const [shippingAvail,   setShippingAvail]   = useState(true);
@@ -125,7 +127,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
     setAgencies([]);
     try {
       const res = await client.get(`/seller/store/public/${slug}/shipping/agencies`, {
-        params: { province },
+        params: { province, cp: shipping.postal_code.trim() },
       });
       setAgencies(Array.isArray(res.data) ? res.data : []);
     } catch {
@@ -245,7 +247,18 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
     <div className="checkout-step" key="shipping-method">
       <h2 className="checkout-step__title">Elegí cómo recibir tu pedido</h2>
 
-      {allFree && (
+      {isLargeOrder && (
+        <div style={{
+          background: "#fffbeb", border: "1px solid #fbbf24",
+          borderRadius: 10, padding: "12px 16px", marginBottom: 16,
+          fontSize: ".875rem", color: "#92400e", display: "flex", gap: 8, alignItems: "flex-start",
+        }}>
+          <MessageSquare size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>Para pedidos grandes coordinamos el envío y el pago directamente con vos. Solo necesitás elegir cómo querés recibirlo.</span>
+        </div>
+      )}
+
+      {allFree && !isLargeOrder && (
         <div style={{
           background: "#d1fae5", border: "1px solid #6ee7b7",
           borderRadius: 10, padding: "12px 16px", marginBottom: 16,
@@ -268,7 +281,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
 
       {/* Type selector */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        {(shippingAvail ? homeRates.length > 0 : true) && (
+        {!isLargeOrder && (shippingAvail ? homeRates.length > 0 : true) && (
           <button
             type="button"
             onClick={() => selectType("home")}
@@ -290,7 +303,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
           </button>
         )}
 
-        {(shippingAvail ? branchRates.length > 0 : true) && (
+        {!isLargeOrder && (shippingAvail ? branchRates.length > 0 : true) && (
           <button
             type="button"
             onClick={() => selectType("branch")}
@@ -464,7 +477,14 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
 
           {!fetchingAgencies && agencies.length > 0 && (
             <div className="form-field">
-              <label className="form-label">Sucursal *</label>
+              <label className="form-label">
+                Sucursal *
+                {shipping.postal_code && (
+                  <span style={{ marginLeft: 8, fontSize: ".75rem", fontWeight: 500, color: "var(--text-secondary)" }}>
+                    cercanas a CP {shipping.postal_code}
+                  </span>
+                )}
+              </label>
               <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border, #e2e2e2)", borderRadius: 8 }}>
                 {agencies.map(a => (
                   <label
@@ -481,7 +501,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
                     <div>
                       <div style={{ fontWeight: 600, fontSize: ".875rem" }}>{a.name}</div>
                       <div style={{ fontSize: ".78rem", color: "var(--text-secondary)" }}>
-                        {a.address}{a.city ? `, ${a.city}` : ""}
+                        {a.address}{a.city ? `, ${a.city}` : ""}{a.cp ? ` · CP ${a.cp}` : ""}
                       </div>
                     </div>
                   </label>
@@ -596,6 +616,7 @@ export default function CheckoutPage({ slug }) {
   const grandTotal      = finalTotal + shippingAmt;
   const isCustomShip    = shipping.type === "flete" || shipping.type === "pickup";
   const payableTotal    = isCustomShip ? SEÑA : grandTotal;
+  const isLargeOrder    = grandTotal > LARGE_ORDER_THRESHOLD;
 
   // ── Validación step 3 ──────────────────────────────────────────────────────
   function validateStep3() {
@@ -689,6 +710,39 @@ export default function CheckoutPage({ slug }) {
 
     setErrors({ submit: "La tienda procesó el pedido pero no devolvió información de pago. Revisá la consola (F12)." });
     setSending(false);
+  }
+
+  // ── Submit large order → consumer chat ────────────────────────────────────
+  async function submitSupportChat() {
+    setSending(true);
+    setErrors({});
+    const fullName = `${customer.firstName} ${customer.lastName}`.trim();
+    try {
+      const res = await client.post(`/consumer/${slug}/conversations`, {
+        consumer_email: customer.email,
+        consumer_name:  fullName,
+        consumer_phone: customer.phone,
+        order_items: discountResult.items.map(i => ({
+          name:       i.custom_name || i.name,
+          quantity:   i.qty,
+          unit_price: i.effectivePrice,
+        })),
+        grand_total:  grandTotal,
+        shipping_info: {
+          type:                   shipping.type,
+          postal_code:            shipping.postal_code,
+          province:               shipping.province,
+          city:                   shipping.city,
+          transport_company_name: shipping.transport_company_name || null,
+          contact_phone:          shipping.contact_phone          || null,
+        },
+      });
+      navigate(`/chat/${res.data.id}?token=${res.data.access_token}`);
+    } catch (err) {
+      const msg = err.response?.data?.message || "No se pudo iniciar la consulta. Intentá de nuevo.";
+      setErrors({ submit: msg });
+      setSending(false);
+    }
   }
 
   // ── Pantalla de éxito ──────────────────────────────────────────────────────
@@ -844,6 +898,7 @@ export default function CheckoutPage({ slug }) {
               setCustomer={setCustomer}
               onNext={() => setStep(3)}
               allFree={allCartFreeShipping}
+              isLargeOrder={grandTotal > LARGE_ORDER_THRESHOLD}
             />
           )}
 
@@ -1033,19 +1088,45 @@ export default function CheckoutPage({ slug }) {
                 </div>
               )}
 
-              <button
-                className={`btn-pay ${sending ? "btn-pay--loading" : ""}`}
-                onClick={submitOrder}
-                disabled={sending}
-              >
-                {sending
-                  ? <><Loader2 size={18} className="spin" /> Procesando...</>
-                  : <><CreditCard size={18} /> {isCustomShip ? `Pagar seña $${fmt(SEÑA)}` : `Pagar $${fmt(payableTotal)}`}</>}
-              </button>
-
-              <p className="pay-note">
-                Al confirmar serás redirigido al procesador de pagos seguro de MercadoPago.
-              </p>
+              {isLargeOrder ? (
+                <>
+                  <div style={{
+                    background: "#fffbeb", border: "1px solid #fbbf24",
+                    borderRadius: 10, padding: "12px 16px", marginBottom: 16,
+                    fontSize: ".875rem", color: "#92400e",
+                  }}>
+                    <strong>Pedido grande:</strong> coordinamos el envío y el pago directamente con vos. Al confirmar te abrimos un chat con nuestro equipo.
+                  </div>
+                  <button
+                    className={`btn-pay ${sending ? "btn-pay--loading" : ""}`}
+                    onClick={submitSupportChat}
+                    disabled={sending}
+                    style={{ background: "var(--brand, #4db81a)" }}
+                  >
+                    {sending
+                      ? <><Loader2 size={18} className="spin" /> Procesando...</>
+                      : <><MessageSquare size={18} /> Consultar por el pedido</>}
+                  </button>
+                  <p className="pay-note">
+                    Nuestro equipo se pondrá en contacto por este chat y por email para coordinar todo.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <button
+                    className={`btn-pay ${sending ? "btn-pay--loading" : ""}`}
+                    onClick={submitOrder}
+                    disabled={sending}
+                  >
+                    {sending
+                      ? <><Loader2 size={18} className="spin" /> Procesando...</>
+                      : <><CreditCard size={18} /> {isCustomShip ? `Pagar seña $${fmt(SEÑA)}` : `Pagar $${fmt(payableTotal)}`}</>}
+                  </button>
+                  <p className="pay-note">
+                    Al confirmar serás redirigido al procesador de pagos seguro de MercadoPago.
+                  </p>
+                </>
+              )}
             </div>
           )}
 

@@ -7,8 +7,9 @@ import { initPixel, trackPixel } from "./utils/pixel";
 import StorePage    from "./pages/StorePage";
 import ProductPage  from "./pages/ProductPage";
 import ComboPage    from "./pages/ComboPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import NotFound     from "./pages/NotFound";
+import CheckoutPage      from "./pages/CheckoutPage";
+import ConsumerChatPage  from "./pages/ConsumerChatPage";
+import NotFound          from "./pages/NotFound";
 import ChatWidget    from "./components/ChatWidget";
 import PaymentResult  from "./components/PaymentResult";
 import LoadingScreen  from "./components/LoadingScreen";
@@ -195,6 +196,7 @@ export default function App() {
           <Route path="/product/:id"    element={<ProductPage slug={slug} />} />
           <Route path="/combo/:id"      element={<ComboPage   slug={slug} />} />
           <Route path="/checkout"       element={<CheckoutPage slug={slug} />} />
+          <Route path="/chat/:id"       element={<ConsumerChatPage />} />
           <Route path="*"               element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
