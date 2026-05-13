@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ShoppingBag, Truck, User, CreditCard,
   Trash2, Plus, Minus, Check, Zap, ChevronRight, Loader2, MapPin,
-  Building2, MessageSquare, Package, Phone,
+  Building2, MessageSquare, Package,
 } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
@@ -13,10 +13,10 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 const STEPS = [
-  { id: 1, label: "Carrito",     icon: ShoppingBag },
-  { id: 2, label: "Envío",       icon: Truck       },
-  { id: 3, label: "Datos",       icon: User        },
-  { id: 4, label: "Pago",        icon: CreditCard  },
+  { id: 1, label: "Carrito", icon: ShoppingBag },
+  { id: 2, label: "Datos",   icon: User        },
+  { id: 3, label: "Envío",   icon: Truck       },
+  { id: 4, label: "Pago",    icon: CreditCard  },
 ];
 
 const LARGE_ORDER_THRESHOLD = 150000;
@@ -29,34 +29,29 @@ const AR_PROVINCES = [
 ];
 
 const EMPTY_SHIPPING = {
-  postal_code:    "",
-  type:           null,    // 'home' | 'branch' | 'flete' | 'pickup'
-  street:         "",
-  street_number:  "",
-  floor_apt:      "",
-  city:           "",
-  province:       "",
-  branch_id:      "",
-  branch_name:    "",
+  postal_code:     "",
+  type:            null,   // 'home' | 'branch' | 'flete' | 'pickup'
+  street:          "",
+  street_number:   "",
+  floor_apt:       "",
+  city:            "",
+  province:        "",
+  branch_id:       "",
+  branch_name:     "",
   branch_province: "",
-  service_code:   "",
-  service_name:   "",
-  amount:         0,
-  transport_company_id:   "",
-  transport_company_name: "",
-  contact_phone:  "",
+  service_code:    "",
+  service_name:    "",
+  amount:          0,
 };
 
-const SEÑA = 5000;
-
 const EMPTY_CUSTOMER = {
-  email:      "",
-  firstName:  "",
-  lastName:   "",
-  docType:    "DNI",
-  docNumber:  "",
-  phone:      "",
-  notes:      "",
+  email:     "",
+  firstName: "",
+  lastName:  "",
+  docType:   "DNI",
+  docNumber: "",
+  phone:     "",
+  notes:     "",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,38 +68,23 @@ function diagnoseMPResponse(data) {
 
 // ─── Sub-component: shipping step ─────────────────────────────────────────────
 
-function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNext, allFree, isLargeOrder }) {
-  const [phase,           setPhase]           = useState("input");   // 'input' | 'method'
+function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, isLargeOrder }) {
+  const [phase,           setPhase]           = useState(isLargeOrder ? "method" : "input");
   const [rates,           setRates]           = useState([]);
   const [shippingAvail,   setShippingAvail]   = useState(true);
   const [fetchingRates,   setFetchingRates]   = useState(false);
   const [agencies,        setAgencies]        = useState([]);
   const [fetchingAgencies,setFetchingAgencies]= useState(false);
   const [errors,          setErrors]          = useState({});
-  const [customExpanded,  setCustomExpanded]  = useState(["flete", "pickup"].includes(shipping.type));
-  const [transportCos,    setTransportCos]    = useState([]);
-
-  useEffect(() => {
-    client.get(`/seller/store/public/${slug}/transport-companies`)
-      .then(res => setTransportCos(Array.isArray(res.data) ? res.data : []))
-      .catch(() => setTransportCos([]));
-  }, [slug]);
 
   const homeRates   = rates.filter(r => r.home_delivery);
   const branchRates = rates.filter(r => r.branch_pickup);
 
   async function handleFetchRates() {
-    const e = {};
-    if (!customer.email.trim())             e.email = "Ingresá tu email";
-    else if (!/\S+@\S+\.\S+/.test(customer.email)) e.email = "Email inválido";
-    setErrors(e);
-    if (Object.keys(e).length > 0) return;
-
     if (!shipping.postal_code.trim()) {
       setPhase("method");
       return;
     }
-
     setFetchingRates(true);
     try {
       const res = await client.get(`/seller/store/public/${slug}/shipping/rates`, {
@@ -138,85 +118,57 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
   }
 
   function selectType(type) {
-    if (type === "custom") {
-      setCustomExpanded(true);
-      return;
-    }
     if (type === "flete") {
-      setShipping(s => ({ ...s, type: "flete", service_code: "", service_name: "Flete", amount: 0, transport_company_id: "", transport_company_name: "" }));
-      setCustomExpanded(true);
+      setShipping(s => ({ ...s, type: "flete", service_code: "", service_name: "Flete", amount: 0 }));
       return;
     }
     if (type === "pickup") {
-      setShipping(s => ({ ...s, type: "pickup", service_code: "", service_name: "Pasar a buscar", amount: 0, transport_company_id: "", transport_company_name: "" }));
-      setCustomExpanded(true);
+      setShipping(s => ({ ...s, type: "pickup", service_code: "", service_name: "Pasar a buscar", amount: 0 }));
       return;
     }
-    setCustomExpanded(false);
     const defaultRate = type === "home"
       ? (homeRates[0]   || { code: "", name: "", price: 0 })
       : (branchRates[0] || { code: "", name: "", price: 0 });
     setShipping(s => ({
-      ...s,
-      type,
+      ...s, type,
       service_code: defaultRate.code,
       service_name: defaultRate.name,
       amount:       defaultRate.price,
-      transport_company_id: "", transport_company_name: "", contact_phone: "",
     }));
   }
 
   function selectRate(rate) {
-    setShipping(s => ({
-      ...s,
-      service_code: rate.code,
-      service_name: rate.name,
-      amount:       rate.price,
-    }));
+    setShipping(s => ({ ...s, service_code: rate.code, service_name: rate.name, amount: rate.price }));
   }
 
   function validateMethod() {
     const e = {};
-    if (!shipping.type)                       e.type = "Seleccioná un método de envío";
+    if (!shipping.type)                     e.type = "Seleccioná un método de envío";
     if (shipping.type === "home") {
-      if (!shipping.street.trim())            e.street = "Ingresá la calle";
-      if (!shipping.street_number.trim())     e.street_number = "Ingresá el número";
-      if (!shipping.city.trim())              e.city = "Ingresá la ciudad";
-      if (!shipping.province)                 e.province = "Seleccioná la provincia";
+      if (!shipping.street.trim())          e.street        = "Ingresá la calle";
+      if (!shipping.street_number.trim())   e.street_number = "Ingresá el número";
+      if (!shipping.city.trim())            e.city          = "Ingresá la ciudad";
+      if (!shipping.province)               e.province      = "Seleccioná la provincia";
     }
     if (shipping.type === "branch" && !shipping.branch_id)
       e.branch = "Seleccioná una sucursal";
-    if (shipping.type === "flete" && !shipping.transport_company_id)
-      e.transport = "Seleccioná una empresa de transporte";
-    if ((shipping.type === "flete" || shipping.type === "pickup") && !shipping.contact_phone?.trim())
-      e.contact_phone = "Ingresá tu teléfono de contacto";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
-  // ── Phase: input (email + CP) ──────────────────────────────────────────────
+  // ── Phase: input (CP only) ─────────────────────────────────────────────────
   if (phase === "input") {
     return (
       <div className="checkout-step" key="shipping-input">
         <h2 className="checkout-step__title">¿A dónde enviamos tu pedido?</h2>
         <div className="checkout-form">
-          <div className={`form-field ${errors.email ? "form-field--error" : ""}`}>
-            <label className="form-label">Email *</label>
-            <input
-              className="form-input"
-              type="email"
-              placeholder="tu@email.com"
-              value={customer.email}
-              onChange={e => {
-                setCustomer(p => ({ ...p, email: e.target.value }));
-                if (errors.email) setErrors(prev => ({ ...prev, email: "" }));
-              }}
-            />
-            {errors.email && <span className="form-error">{errors.email}</span>}
-          </div>
-
           <div className="form-field">
-            <label className="form-label">Código postal <span style={{ fontWeight: 400, color: "var(--text-secondary)" }}>(opcional — para cotizar envío)</span></label>
+            <label className="form-label">
+              Código postal{" "}
+              <span style={{ fontWeight: 400, color: "var(--text-secondary)" }}>
+                (opcional — para cotizar envío)
+              </span>
+            </label>
             <input
               className="form-input"
               type="text"
@@ -228,12 +180,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
             />
           </div>
         </div>
-
-        <button
-          className="btn-next"
-          onClick={handleFetchRates}
-          disabled={fetchingRates}
-        >
+        <button className="btn-next" onClick={handleFetchRates} disabled={fetchingRates}>
           {fetchingRates
             ? <><Loader2 size={16} className="spin" /> Cotizando...</>
             : <>Continuar <ChevronRight size={16} /></>}
@@ -242,7 +189,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
     );
   }
 
-  // ── Phase: method (choose type + fill details) ─────────────────────────────
+  // ── Phase: method ─────────────────────────────────────────────────────────
   return (
     <div className="checkout-step" key="shipping-method">
       <h2 className="checkout-step__title">Elegí cómo recibir tu pedido</h2>
@@ -254,7 +201,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
           fontSize: ".875rem", color: "#92400e", display: "flex", gap: 8, alignItems: "flex-start",
         }}>
           <MessageSquare size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-          <span>Para pedidos grandes coordinamos el envío y el pago directamente con vos. Solo necesitás elegir cómo querés recibirlo.</span>
+          <span>Para pedidos grandes coordinamos el envío y el pago directamente con vos. Solo elegí cómo preferís recibirlo.</span>
         </div>
       )}
 
@@ -269,7 +216,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
         </div>
       )}
 
-      {!shippingAvail && rates.length === 0 && (
+      {!shippingAvail && rates.length === 0 && !isLargeOrder && (
         <div style={{
           background: "var(--surface-2, #f8f8f8)",
           border: "1px solid var(--border, #e2e2e2)",
@@ -280,13 +227,13 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
       )}
 
       {/* Type selector */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
         {!isLargeOrder && (shippingAvail ? homeRates.length > 0 : true) && (
           <button
             type="button"
             onClick={() => selectType("home")}
             style={{
-              flex: 1, minWidth: 140, padding: "14px 16px", borderRadius: 10, cursor: "pointer",
+              padding: "14px 16px", borderRadius: 10, cursor: "pointer",
               border: `2px solid ${shipping.type === "home" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
               background: shipping.type === "home" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
               display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
@@ -308,7 +255,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
             type="button"
             onClick={() => selectType("branch")}
             style={{
-              flex: 1, minWidth: 140, padding: "14px 16px", borderRadius: 10, cursor: "pointer",
+              padding: "14px 16px", borderRadius: 10, cursor: "pointer",
               border: `2px solid ${shipping.type === "branch" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
               background: shipping.type === "branch" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
               display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
@@ -327,81 +274,44 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
 
         <button
           type="button"
-          onClick={() => selectType("custom")}
+          onClick={() => selectType("flete")}
           style={{
-            flex: 1, minWidth: 140, padding: "14px 16px", borderRadius: 10, cursor: "pointer",
-            border: `2px solid ${customExpanded ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
-            background: customExpanded ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
+            padding: "14px 16px", borderRadius: 10, cursor: "pointer",
+            border: `2px solid ${shipping.type === "flete" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
+            background: shipping.type === "flete" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
             display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
           }}
         >
-          <MessageSquare size={20} color={customExpanded ? "var(--brand, #6366f1)" : undefined} />
-          <strong style={{ fontSize: ".875rem" }}>Envío personalizado</strong>
+          <Truck size={20} color={shipping.type === "flete" ? "var(--brand, #6366f1)" : undefined} />
+          <strong style={{ fontSize: ".875rem" }}>Flete</strong>
           <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>Coordinar con el vendedor</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => selectType("pickup")}
+          style={{
+            padding: "14px 16px", borderRadius: 10, cursor: "pointer",
+            border: `2px solid ${shipping.type === "pickup" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
+            background: shipping.type === "pickup" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
+            display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+          }}
+        >
+          <Package size={20} color={shipping.type === "pickup" ? "var(--brand, #6366f1)" : undefined} />
+          <strong style={{ fontSize: ".875rem" }}>Pasar a buscar</strong>
+          <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>Retiro en el local</span>
         </button>
       </div>
 
-      {/* Sub-opciones de envío personalizado */}
-      {customExpanded && (
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, marginLeft: 4 }}>
-          <button
-            type="button"
-            onClick={() => selectType("flete")}
-            style={{
-              flex: 1, padding: "12px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-              border: `2px solid ${shipping.type === "flete" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
-              background: shipping.type === "flete" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
-              display: "flex", alignItems: "center", gap: 10,
-            }}
-          >
-            <Truck size={18} color={shipping.type === "flete" ? "var(--brand, #6366f1)" : "var(--text-secondary)"} />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: ".875rem" }}>Flete</div>
-              <div style={{ fontSize: ".78rem", color: "var(--text-secondary)" }}>Empresa de transporte</div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => selectType("pickup")}
-            style={{
-              flex: 1, padding: "12px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-              border: `2px solid ${shipping.type === "pickup" ? "var(--brand, #6366f1)" : "var(--border, #e2e2e2)"}`,
-              background: shipping.type === "pickup" ? "var(--brand-light, #eef2ff)" : "var(--surface, #fff)",
-              display: "flex", alignItems: "center", gap: 10,
-            }}
-          >
-            <Package size={18} color={shipping.type === "pickup" ? "var(--brand, #6366f1)" : "var(--text-secondary)"} />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: ".875rem" }}>Pasar a buscar</div>
-              <div style={{ fontSize: ".78rem", color: "var(--text-secondary)" }}>Retiro en el local</div>
-            </div>
-          </button>
-        </div>
-      )}
-
       {errors.type && <span className="form-error" style={{ display: "block", marginBottom: 12 }}>{errors.type}</span>}
 
-      {/* Rate selector (if multiple options for chosen type) */}
+      {/* Rate selector for home */}
       {shipping.type === "home" && homeRates.length > 1 && (
         <div style={{ marginBottom: 16 }}>
           <p style={{ fontSize: ".82rem", color: "var(--text-secondary)", marginBottom: 8 }}>Servicio de envío:</p>
           {homeRates.map(r => (
             <label key={r.code} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8, cursor: "pointer" }}>
-              <input type="radio" name="home_rate" checked={shipping.service_code === r.code}
-                onChange={() => selectRate(r)} />
-              <span style={{ flex: 1, fontSize: ".875rem" }}>{r.name}</span>
-              <span style={{ fontWeight: 600 }}>${fmt(r.price)}</span>
-            </label>
-          ))}
-        </div>
-      )}
-      {shipping.type === "branch" && branchRates.length > 1 && (
-        <div style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: ".82rem", color: "var(--text-secondary)", marginBottom: 8 }}>Servicio de envío:</p>
-          {branchRates.map(r => (
-            <label key={r.code} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8, cursor: "pointer" }}>
-              <input type="radio" name="branch_rate" checked={shipping.service_code === r.code}
-                onChange={() => selectRate(r)} />
+              <input type="radio" name="home_rate" checked={shipping.service_code === r.code} onChange={() => selectRate(r)} />
               <span style={{ flex: 1, fontSize: ".875rem" }}>{r.name}</span>
               <span style={{ fontWeight: 600 }}>${fmt(r.price)}</span>
             </label>
@@ -409,7 +319,21 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
         </div>
       )}
 
-      {/* Home delivery address form */}
+      {/* Rate selector for branch */}
+      {shipping.type === "branch" && branchRates.length > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: ".82rem", color: "var(--text-secondary)", marginBottom: 8 }}>Servicio de envío:</p>
+          {branchRates.map(r => (
+            <label key={r.code} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8, cursor: "pointer" }}>
+              <input type="radio" name="branch_rate" checked={shipping.service_code === r.code} onChange={() => selectRate(r)} />
+              <span style={{ flex: 1, fontSize: ".875rem" }}>{r.name}</span>
+              <span style={{ fontWeight: 600 }}>${fmt(r.price)}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {/* Home delivery address */}
       {shipping.type === "home" && (
         <div className="checkout-form" style={{ marginTop: 4 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12 }}>
@@ -428,7 +352,7 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
               {errors.street_number && <span className="form-error">{errors.street_number}</span>}
             </div>
           </div>
-          <div className={`form-field`}>
+          <div className="form-field">
             <label className="form-label">Piso / Depto (opcional)</label>
             <input className="form-input" placeholder="3° B"
               value={shipping.floor_apt}
@@ -519,68 +443,27 @@ function ShippingStep({ slug, shipping, setShipping, customer, setCustomer, onNe
         </div>
       )}
 
-      {/* Flete: transport company picker */}
-      {shipping.type === "flete" && (
-        <div className="checkout-form" style={{ marginTop: 4 }}>
-          <div className={`form-field ${errors.transport ? "form-field--error" : ""}`}>
-            <label className="form-label">Empresa de transporte *</label>
-            <select
-              className="form-input"
-              value={shipping.transport_company_id}
-              onChange={e => {
-                const opt = e.target.options[e.target.selectedIndex];
-                setShipping(s => ({
-                  ...s,
-                  transport_company_id:   e.target.value,
-                  transport_company_name: opt.text,
-                  service_name:           opt.text || "Flete",
-                }));
-              }}
-            >
-              <option value="">Seleccioná una empresa</option>
-              {transportCos.map(c => (
-                <option key={c.id} value={String(c.id)}>{c.name}</option>
-              ))}
-            </select>
-            {errors.transport && <span className="form-error">{errors.transport}</span>}
-          </div>
-        </div>
-      )}
-
-      {/* Contact phone for flete/pickup */}
+      {/* Flete / pickup info */}
       {(shipping.type === "flete" || shipping.type === "pickup") && (
-        <div className="checkout-form" style={{ marginTop: 8 }}>
-          <div style={{
-            background: "var(--surface-2, #f8f8f8)",
-            border: "1px solid var(--border, #e2e2e2)",
-            borderRadius: 10, padding: "12px 16px", marginBottom: 12,
-            fontSize: ".875rem", color: "var(--text-secondary)",
-          }}>
-            {shipping.type === "flete"
-              ? "El vendedor coordinará el flete con vos una vez recibido el pedido."
-              : "El vendedor te indicará la dirección y horarios para pasar a retirar."}
-            {" "}Pagás una <strong>seña de ${fmt(SEÑA)}</strong> para confirmar el pedido.
-          </div>
-          <div className={`form-field ${errors.contact_phone ? "form-field--error" : ""}`}>
-            <label className="form-label"><Phone size={14} style={{ verticalAlign: "middle" }} /> Teléfono de contacto *</label>
-            <input
-              className="form-input"
-              type="tel"
-              placeholder="+54 11 1234-5678"
-              value={shipping.contact_phone}
-              onChange={e => {
-                setShipping(s => ({ ...s, contact_phone: e.target.value }));
-                if (errors.contact_phone) setErrors(p => ({ ...p, contact_phone: "" }));
-              }}
-            />
-            {errors.contact_phone && <span className="form-error">{errors.contact_phone}</span>}
-          </div>
+        <div style={{
+          background: "var(--surface-2, #f8f8f8)",
+          border: "1px solid var(--border, #e2e2e2)",
+          borderRadius: 10, padding: "12px 16px", marginTop: 4, marginBottom: 8,
+          fontSize: ".875rem", color: "var(--text-secondary)",
+        }}>
+          {shipping.type === "flete"
+            ? "El vendedor coordinará el flete con vos una vez recibido el pedido."
+            : "El vendedor te indicará la dirección y horarios para pasar a retirar."}
         </div>
       )}
 
       {/* Navigation */}
       <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        <button className="btn-ghost" style={{ flex: "0 0 auto" }} onClick={() => setPhase("input")}>
+        <button
+          className="btn-ghost"
+          style={{ flex: "0 0 auto" }}
+          onClick={() => isLargeOrder ? onBack() : setPhase("input")}
+        >
           <ArrowLeft size={15} /> Volver
         </button>
         <button
@@ -610,21 +493,35 @@ export default function CheckoutPage({ slug }) {
   const [sending,  setSending]  = useState(false);
   const [success,  setSuccess]  = useState(null);
 
-  const subtotal        = discountResult.subtotal ?? 0;
-  const hasDisc         = totalSaved > 0.01;
-  const shippingAmt     = allCartFreeShipping ? 0 : (shipping.amount || 0);
-  const grandTotal      = finalTotal + shippingAmt;
-  const isCustomShip    = shipping.type === "flete" || shipping.type === "pickup";
-  const payableTotal    = isCustomShip ? SEÑA : grandTotal;
-  const isLargeOrder    = grandTotal > LARGE_ORDER_THRESHOLD;
+  const subtotal    = discountResult.subtotal ?? 0;
+  const hasDisc     = totalSaved > 0.01;
+  const shippingAmt = allCartFreeShipping ? 0 : (shipping.amount || 0);
+  const grandTotal  = finalTotal + shippingAmt;
+  const isLargeOrder = grandTotal > LARGE_ORDER_THRESHOLD;
 
-  // ── Validación step 3 ──────────────────────────────────────────────────────
-  function validateStep3() {
+  // ── Validación step 2 (Datos) ──────────────────────────────────────────────
+  function validateStep2() {
     const e = {};
-    if (!customer.firstName.trim()) e.firstName = "Ingresá tu nombre";
-    if (!customer.lastName.trim())  e.lastName  = "Ingresá tu apellido";
-    if (!customer.docNumber.trim()) e.docNumber = "Ingresá tu número de documento";
-    if (!customer.phone.trim())     e.phone     = "Ingresá tu teléfono";
+    if (!customer.email.trim())                         e.email     = "Ingresá tu email";
+    else if (!/\S+@\S+\.\S+/.test(customer.email))     e.email     = "Email inválido";
+    if (!customer.firstName.trim())                     e.firstName = "Ingresá tu nombre";
+    if (!customer.lastName.trim())                      e.lastName  = "Ingresá tu apellido";
+    if (!customer.docNumber.trim()) {
+      e.docNumber = "Ingresá tu número de documento";
+    } else {
+      const digits = customer.docNumber.replace(/\D/g, "");
+      if (customer.docType === "DNI" && (digits.length < 7 || digits.length > 8))
+        e.docNumber = "El DNI debe tener 7 u 8 dígitos";
+      else if ((customer.docType === "CUIT" || customer.docType === "CUIL") && digits.length !== 11)
+        e.docNumber = "El CUIT/CUIL debe tener 11 dígitos";
+    }
+    if (!customer.phone.trim()) {
+      e.phone = "Ingresá tu teléfono";
+    } else {
+      const digits = customer.phone.replace(/\D/g, "");
+      if (digits.length < 8 || digits.length > 15)
+        e.phone = "El teléfono debe tener entre 8 y 15 dígitos";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -657,33 +554,33 @@ export default function CheckoutPage({ slug }) {
           unit_price: i.effectivePrice,
         })),
         shipping: {
-          type:                   shipping.type,
-          postal_code:            shipping.postal_code,
-          street:                 shipping.street,
-          street_number:          shipping.street_number,
-          floor_apt:              shipping.floor_apt,
-          city:                   shipping.city,
-          province:               shipping.province,
-          branch_id:              shipping.branch_id,
-          branch_name:            shipping.branch_name,
-          service_code:           shipping.service_code,
-          service_name:           shipping.service_name,
-          amount:                 shippingAmt,
-          transport_company_id:   shipping.transport_company_id   || null,
-          transport_company_name: shipping.transport_company_name || null,
-          contact_phone:          shipping.contact_phone          || null,
+          type:          shipping.type,
+          postal_code:   shipping.postal_code,
+          street:        shipping.street,
+          street_number: shipping.street_number,
+          floor_apt:     shipping.floor_apt,
+          city:          shipping.city,
+          province:      shipping.province,
+          branch_id:     shipping.branch_id,
+          branch_name:   shipping.branch_name,
+          service_code:  shipping.service_code,
+          service_name:  shipping.service_name,
+          amount:        shippingAmt,
+          contact_phone: customer.phone || null,
+          transport_company_id:   null,
+          transport_company_name: null,
         },
-        total: payableTotal,
+        total: grandTotal,
       });
     } catch (err) {
       const status    = err.response?.status;
       const msg       = err.response?.data?.message || err.response?.data?.error;
       const isNetwork = !err.response;
       let userMsg;
-      if (isNetwork)                   userMsg = "No se pudo conectar al servidor.";
+      if (isNetwork)                        userMsg = "No se pudo conectar al servidor.";
       else if (status === 401 || status === 403) userMsg = `Error de autenticación (${status}).`;
-      else if (status >= 500)          userMsg = `Error del servidor (${status}). Intentá de nuevo.`;
-      else                             userMsg = msg || `Error inesperado (${status ?? "sin respuesta"}).`;
+      else if (status >= 500)               userMsg = `Error del servidor (${status}). Intentá de nuevo.`;
+      else                                  userMsg = msg || `Error inesperado (${status ?? "sin respuesta"}).`;
       setErrors({ submit: userMsg });
       setSending(false);
       return;
@@ -692,8 +589,8 @@ export default function CheckoutPage({ slug }) {
     const payUrl = diagnoseMPResponse(res.data);
     if (payUrl) {
       trackPixel("InitiateCheckout", {
-        value:    grandTotal,
-        currency: "ARS",
+        value:     grandTotal,
+        currency:  "ARS",
         num_items: cart.reduce((s, i) => s + i.qty, 0),
       });
       window.location.href = payUrl;
@@ -722,19 +619,22 @@ export default function CheckoutPage({ slug }) {
         consumer_email: customer.email,
         consumer_name:  fullName,
         consumer_phone: customer.phone,
+        customer_city:  shipping.city || "",
+        customer_notes: customer.notes || null,
         order_items: discountResult.items.map(i => ({
+          product_id: i.is_combo ? null : i.id,
           name:       i.custom_name || i.name,
           quantity:   i.qty,
           unit_price: i.effectivePrice,
         })),
         grand_total:  grandTotal,
         shipping_info: {
-          type:                   shipping.type,
-          postal_code:            shipping.postal_code,
-          province:               shipping.province,
-          city:                   shipping.city,
-          transport_company_name: shipping.transport_company_name || null,
-          contact_phone:          shipping.contact_phone          || null,
+          type:         shipping.type,
+          postal_code:  shipping.postal_code,
+          province:     shipping.province,
+          city:         shipping.city,
+          service_name: shipping.service_name || null,
+          contact_phone: customer.phone || null,
         },
       });
       navigate(`/chat/${res.data.id}?token=${res.data.access_token}`);
@@ -888,25 +788,23 @@ export default function CheckoutPage({ slug }) {
             </div>
           )}
 
-          {/* ── Step 2: Envío ────────────────────────────────────────────── */}
+          {/* ── Step 2: Datos ────────────────────────────────────────────── */}
           {step === 2 && (
-            <ShippingStep
-              slug={slug}
-              shipping={shipping}
-              setShipping={setShipping}
-              customer={customer}
-              setCustomer={setCustomer}
-              onNext={() => setStep(3)}
-              allFree={allCartFreeShipping}
-              isLargeOrder={grandTotal > LARGE_ORDER_THRESHOLD}
-            />
-          )}
-
-          {/* ── Step 3: Datos de facturación ─────────────────────────────── */}
-          {step === 3 && (
-            <div className="checkout-step" key="billing">
+            <div className="checkout-step" key="datos">
               <h2 className="checkout-step__title">Tus datos</h2>
               <div className="checkout-form">
+                <div className={`form-field ${errors.email ? "form-field--error" : ""}`}>
+                  <label className="form-label">Email *</label>
+                  <input
+                    className="form-input"
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={customer.email}
+                    onChange={e => { setCustomer(p => ({ ...p, email: e.target.value })); if (errors.email) setErrors(p => ({ ...p, email: "" })); }}
+                  />
+                  {errors.email && <span className="form-error">{errors.email}</span>}
+                </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div className={`form-field ${errors.firstName ? "form-field--error" : ""}`}>
                     <label className="form-label">Nombre *</label>
@@ -928,7 +826,7 @@ export default function CheckoutPage({ slug }) {
                   <div className="form-field">
                     <label className="form-label">Tipo doc.</label>
                     <select className="form-input" value={customer.docType}
-                      onChange={e => setCustomer(p => ({ ...p, docType: e.target.value }))}>
+                      onChange={e => setCustomer(p => ({ ...p, docType: e.target.value, docNumber: "" }))}>
                       <option value="DNI">DNI</option>
                       <option value="CUIT">CUIT</option>
                       <option value="CUIL">CUIL</option>
@@ -937,7 +835,8 @@ export default function CheckoutPage({ slug }) {
                   </div>
                   <div className={`form-field ${errors.docNumber ? "form-field--error" : ""}`}>
                     <label className="form-label">Número *</label>
-                    <input className="form-input" placeholder="12345678"
+                    <input className="form-input"
+                      placeholder={customer.docType === "DNI" ? "12345678" : customer.docType === "Pasaporte" ? "ABC123456" : "20123456789"}
                       value={customer.docNumber}
                       onChange={e => { setCustomer(p => ({ ...p, docNumber: e.target.value })); if (errors.docNumber) setErrors(p => ({ ...p, docNumber: "" })); }} />
                     {errors.docNumber && <span className="form-error">{errors.docNumber}</span>}
@@ -961,13 +860,23 @@ export default function CheckoutPage({ slug }) {
                 </div>
               </div>
 
-              <button
-                className="btn-next"
-                onClick={() => { if (validateStep3()) setStep(4); }}
-              >
+              <button className="btn-next" onClick={() => { if (validateStep2()) setStep(3); }}>
                 Continuar <ChevronRight size={16} />
               </button>
             </div>
+          )}
+
+          {/* ── Step 3: Envío ─────────────────────────────────────────────── */}
+          {step === 3 && (
+            <ShippingStep
+              slug={slug}
+              shipping={shipping}
+              setShipping={setShipping}
+              onNext={() => setStep(4)}
+              onBack={() => setStep(2)}
+              allFree={allCartFreeShipping}
+              isLargeOrder={isLargeOrder}
+            />
           )}
 
           {/* ── Step 4: Resumen y pago ───────────────────────────────────── */}
@@ -1003,7 +912,7 @@ export default function CheckoutPage({ slug }) {
                     <span>
                       {shipping.type === "home"   ? "Envío a domicilio"
                       : shipping.type === "branch" ? "Retiro en sucursal"
-                      : shipping.type === "flete"  ? `Flete${shipping.transport_company_name ? ` — ${shipping.transport_company_name}` : ""}`
+                      : shipping.type === "flete"  ? "Flete"
                       : shipping.type === "pickup" ? "Pasar a buscar"
                       :                              "Envío personalizado"}
                     </span>
@@ -1020,7 +929,7 @@ export default function CheckoutPage({ slug }) {
                       <span>{shipping.branch_name}</span>
                     </div>
                   )}
-                  {shipping.service_name && (
+                  {shipping.service_name && shipping.type !== "flete" && shipping.type !== "pickup" && (
                     <div className="pay-summary-card__row">
                       <span className="pay-summary-card__label">Servicio</span>
                       <span>{shipping.service_name}</span>
@@ -1041,42 +950,31 @@ export default function CheckoutPage({ slug }) {
 
               {/* Totales */}
               <div className="pay-totals">
-                {!isCustomShip && hasDisc && (
+                {hasDisc && (
                   <div className="pay-totals__row pay-totals__row--disc">
                     <span><Zap size={13} /> Descuento total</span>
                     <span>−${fmt(totalSaved)}</span>
                   </div>
                 )}
-                {!isCustomShip && allCartFreeShipping && (
+                {allCartFreeShipping && (
                   <div className="pay-totals__row" style={{ color: "var(--success, #059669)" }}>
                     <span><Truck size={13} /> Envío</span>
                     <span>Gratis</span>
                   </div>
                 )}
-                {!isCustomShip && !allCartFreeShipping && shippingAmt > 0 && (
+                {!allCartFreeShipping && shippingAmt > 0 && (
                   <div className="pay-totals__row">
                     <span><Truck size={13} /> {shipping.service_name || "Envío"}</span>
                     <span>${fmt(shippingAmt)}</span>
                   </div>
                 )}
-                {isCustomShip && (
-                  <div className="pay-totals__row" style={{ fontSize: ".82rem", color: "var(--text-secondary)" }}>
-                    <span>Total del pedido</span>
-                    <span>${fmt(grandTotal)}</span>
-                  </div>
-                )}
                 <div className="pay-totals__row pay-totals__row--final">
-                  <span>{isCustomShip ? "Seña a pagar ahora" : "Total a pagar"}</span>
-                  <span>${fmt(payableTotal)}</span>
+                  <span>Total a pagar</span>
+                  <span>${fmt(grandTotal)}</span>
                 </div>
-                {isCustomShip && grandTotal > SEÑA && (
-                  <p style={{ fontSize: ".78rem", color: "var(--text-secondary)", margin: "6px 0 0", lineHeight: 1.4 }}>
-                    El resto del pago (${fmt(grandTotal - SEÑA)}) se coordina con el vendedor al momento de la entrega.
-                  </p>
-                )}
               </div>
 
-              {errors.submit && (
+              {!isLargeOrder && errors.submit && (
                 <div style={{
                   background: "#fff0f0", border: "1px solid #ffb3b3", borderRadius: 8,
                   padding: "12px 16px", marginBottom: 16, fontSize: 14, color: "#c00",
@@ -1092,24 +990,53 @@ export default function CheckoutPage({ slug }) {
                 <>
                   <div style={{
                     background: "#fffbeb", border: "1px solid #fbbf24",
-                    borderRadius: 10, padding: "12px 16px", marginBottom: 16,
+                    borderRadius: 10, padding: "12px 16px", marginBottom: 20,
                     fontSize: ".875rem", color: "#92400e",
                   }}>
-                    <strong>Pedido grande:</strong> coordinamos el envío y el pago directamente con vos. Al confirmar te abrimos un chat con nuestro equipo.
+                    <strong>Pedido mayor a $150.000:</strong> elegí cómo querés continuar.
                   </div>
-                  <button
-                    className={`btn-pay ${sending ? "btn-pay--loading" : ""}`}
-                    onClick={submitSupportChat}
-                    disabled={sending}
-                    style={{ background: "var(--brand, #4db81a)" }}
-                  >
-                    {sending
-                      ? <><Loader2 size={18} className="spin" /> Procesando...</>
-                      : <><MessageSquare size={18} /> Consultar por el pedido</>}
-                  </button>
-                  <p className="pay-note">
-                    Nuestro equipo se pondrá en contacto por este chat y por email para coordinar todo.
-                  </p>
+
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className={`btn-pay ${sending ? "btn-pay--loading" : ""}`}
+                      onClick={submitOrder}
+                      disabled={sending}
+                      style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "16px", lineHeight: 1.3 }}
+                    >
+                      {sending
+                        ? <><Loader2 size={18} className="spin" /> Procesando...</>
+                        : <>
+                            <CreditCard size={20} />
+                            <span style={{ fontWeight: 700, fontSize: ".95rem" }}>Pagar con Mercado Pago</span>
+                            <span style={{ fontSize: ".75rem", opacity: .85, fontWeight: 400 }}>Tarjeta, débito, crédito o cuenta MP</span>
+                          </>
+                      }
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`btn-pay ${sending ? "btn-pay--loading" : ""}`}
+                      onClick={submitSupportChat}
+                      disabled={sending}
+                      style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "16px", lineHeight: 1.3, background: "var(--brand, #4db81a)" }}
+                    >
+                      {sending
+                        ? <><Loader2 size={18} className="spin" /> Procesando...</>
+                        : <>
+                            <MessageSquare size={20} />
+                            <span style={{ fontWeight: 700, fontSize: ".95rem" }}>Coordinar envío y pago</span>
+                            <span style={{ fontSize: ".75rem", opacity: .85, fontWeight: 400 }}>El equipo Ventaz te ayuda por chat</span>
+                          </>
+                      }
+                    </button>
+                  </div>
+
+                  {errors.submit && (
+                    <div style={{ background: "#fff0f0", border: "1px solid #ffb3b3", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#c00" }}>
+                      ⚠️ {errors.submit}
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -1120,10 +1047,10 @@ export default function CheckoutPage({ slug }) {
                   >
                     {sending
                       ? <><Loader2 size={18} className="spin" /> Procesando...</>
-                      : <><CreditCard size={18} /> {isCustomShip ? `Pagar seña $${fmt(SEÑA)}` : `Pagar $${fmt(payableTotal)}`}</>}
+                      : <><CreditCard size={18} /> Pagar ${fmt(grandTotal)} con Mercado Pago</>}
                   </button>
                   <p className="pay-note">
-                    Al confirmar serás redirigido al procesador de pagos seguro de MercadoPago.
+                    Al confirmar serás redirigido al procesador de pagos seguro de Mercado Pago.
                   </p>
                 </>
               )}
@@ -1160,8 +1087,8 @@ export default function CheckoutPage({ slug }) {
                 </div>
               ) : null}
               <div className="aside-total aside-total--main">
-                <span>{isCustomShip ? "Seña" : "Total"}</span>
-                <span>${fmt(payableTotal)}</span>
+                <span>Total</span>
+                <span>${fmt(grandTotal)}</span>
               </div>
             </aside>
           )}
