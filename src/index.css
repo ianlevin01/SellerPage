@@ -543,6 +543,9 @@ a { color: var(--brand); text-decoration: none; }
   margin-bottom: 10px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.pcard__desc p,
+.pcard__desc ul,
+.pcard__desc ol { margin: 0; padding: 0; display: inline; }
 .pcard__price-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .pcard__price {
   font-size: 1.125rem; font-weight: 700; color: var(--brand);

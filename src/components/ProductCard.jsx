@@ -119,7 +119,7 @@ export default function ProductCard({ product, style }) {
             ))}
           </p>
         ) : (product.custom_desc || product.description) ? (
-          <p className="pcard__desc">{product.custom_desc || product.description}</p>
+          <div className="pcard__desc" dangerouslySetInnerHTML={{ __html: product.custom_desc || product.description }} />
         ) : null}
 
         <div className="pcard__price-row">
