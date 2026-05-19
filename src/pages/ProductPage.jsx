@@ -194,7 +194,7 @@ export default function ProductPage() {
 
             {/* Discount tiers */}
             {(hasQty || hasPrice) && (
-              <div className="pd-disc-block">
+              <div className={`pd-disc-block${hasQty && hasPrice ? " pd-disc-block--both" : ""}`}>
                 {hasQty && (
                   <div className="pd-disc-section">
                     <div className="pd-disc-header"><Tag size={12} /> Descuentos por cantidad</div>

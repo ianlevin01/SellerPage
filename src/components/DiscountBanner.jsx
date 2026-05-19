@@ -40,7 +40,7 @@ export default function DiscountBanner() {
   } = discountResult;
 
   return (
-    <section className="disc-banner">
+    <section className={`disc-banner${hasQty && hasPrice ? " disc-banner--both" : ""}`}>
       {hasQty && (
         <div className="disc-banner__section">
           <div className="disc-banner__header">

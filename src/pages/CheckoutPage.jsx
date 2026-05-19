@@ -569,7 +569,7 @@ export default function CheckoutPage({ slug }) {
           branch_name:   shipping.branch_name,
           service_code:  shipping.service_code,
           service_name:  shipping.service_name,
-          amount:        shippingAmt,
+          amount:        shipping.amount,
           contact_phone: customer.phone || null,
           transport_company_id:   null,
           transport_company_name: null,
@@ -809,7 +809,7 @@ export default function CheckoutPage({ slug }) {
                   {errors.email && <span className="form-error">{errors.email}</span>}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className="form-row-2">
                   <div className={`form-field ${errors.firstName ? "form-field--error" : ""}`}>
                     <label className="form-label">Nombre *</label>
                     <input className="form-input" placeholder="Juan"
@@ -826,7 +826,7 @@ export default function CheckoutPage({ slug }) {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12 }}>
+                <div className="form-row-doc">
                   <div className="form-field">
                     <label className="form-label">Tipo doc.</label>
                     <select className="form-input" value={customer.docType}
