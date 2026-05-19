@@ -74,6 +74,70 @@ function applyPageTheme(pg) {
   }
 }
 
+function applyMetaTags(pg) {
+  const metaTitle = pg.meta_title || pg.store_name || "Tienda";
+  document.title = metaTitle;
+
+  function setMeta(name, content, prop = false) {
+    if (!content) return;
+    const attr = prop ? "property" : "name";
+    let el = document.querySelector(`meta[${attr}="${name}"]`);
+    if (!el) { el = document.createElement("meta"); el.setAttribute(attr, name); document.head.appendChild(el); }
+    el.setAttribute("content", content);
+  }
+
+  if (pg.meta_description) setMeta("description", pg.meta_description);
+  setMeta("og:title", metaTitle, true);
+  if (pg.meta_description) setMeta("og:description", pg.meta_description, true);
+  if (pg.og_image_url) setMeta("og:image", pg.og_image_url, true);
+
+  if (pg.favicon_url) {
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+    link.href = pg.favicon_url;
+  }
+}
+
+function initEditMode() {
+  const isEdit = new URLSearchParams(window.location.search).get("__edit") === "1";
+  if (!isEdit) return;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    [data-ventaz-field]:hover{outline:2px dashed #4db81a!important;outline-offset:3px!important;cursor:pointer!important;border-radius:2px!important;}
+    [data-ventaz-product-id]{cursor:pointer!important;}
+    [data-ventaz-product-id]:hover{outline:2px dashed #4db81a!important;outline-offset:3px!important;border-radius:var(--card-radius,12px)!important;}
+  `;
+  document.head.appendChild(style);
+
+  // Single click: block product card navigation; send field click for sections
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-ventaz-product-id]")) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    const el = e.target.closest("[data-ventaz-field]");
+    if (!el) return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.parent.postMessage({ type: "ventaz_field_click", field: el.dataset.ventazField }, "*");
+  }, true);
+
+  // Double click on product card → enter product detail editor
+  document.addEventListener("dblclick", e => {
+    const card = e.target.closest("[data-ventaz-product-id]");
+    if (!card) return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.parent.postMessage({
+      type: "ventaz_product_enter",
+      productId: card.dataset.ventazProductId,
+      productType: card.dataset.ventazProductType || "product",
+    }, "*");
+  }, true);
+}
+
 function scrollPreviewTo(target) {
   const selectors = {
     footer: ".footer",
@@ -94,6 +158,8 @@ function scrollPreviewTo(target) {
     el.scrollIntoView({ behavior: "smooth", block: target === "footer" ? "end" : "start" });
   });
 }
+
+initEditMode();
 
 export default function App() {
   const slug = detectSlug();
@@ -165,8 +231,8 @@ export default function App() {
       .then(res => {
         setStoreData(res.data);
         const pg = res.data.page || {};
-        document.title = pg.store_name || "Tienda";
         applyPageTheme(pg);
+        applyMetaTags(pg);
         if (pg.font_family) {
           const link = document.createElement("link");
           link.rel  = "stylesheet";

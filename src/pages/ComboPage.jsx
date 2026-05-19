@@ -91,7 +91,14 @@ export default function ComboPage() {
             )}
 
             <div className="product-details__price-block">
-              <span className="product-details__price">${fmt(combo.custom_price)}</span>
+              {combo.promo_enabled && combo.promo_price && Number(combo.promo_price) < Number(combo.custom_price) ? (
+                <>
+                  <span className="product-details__price-orig">${fmt(combo.custom_price)}</span>
+                  <span className="product-details__price">${fmt(combo.promo_price)}</span>
+                </>
+              ) : (
+                <span className="product-details__price">${fmt(combo.custom_price)}</span>
+              )}
             </div>
 
             {combo.products?.length > 0 && (

@@ -453,7 +453,11 @@ function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, is
         }}>
           {shipping.type === "flete"
             ? "El vendedor coordinará el flete con vos una vez recibido el pedido."
-            : "El vendedor te indicará la dirección y horarios para pasar a retirar."}
+            : (
+              <span>
+                Podés pasar a retirar en <strong>Pasteur 280, CABA</strong>. El vendedor te confirmará el horario disponible.
+              </span>
+            )}
         </div>
       )}
 
@@ -921,6 +925,12 @@ export default function CheckoutPage({ slug }) {
                     <div className="pay-summary-card__row">
                       <span className="pay-summary-card__label">Dirección</span>
                       <span>{shipping.street} {shipping.street_number}{shipping.floor_apt ? ` ${shipping.floor_apt}` : ""}, {shipping.city}, {shipping.province}</span>
+                    </div>
+                  )}
+                  {shipping.type === "pickup" && (
+                    <div className="pay-summary-card__row">
+                      <span className="pay-summary-card__label">Dirección</span>
+                      <span>Pasteur 280, CABA</span>
                     </div>
                   )}
                   {shipping.type === "branch" && shipping.branch_name && (

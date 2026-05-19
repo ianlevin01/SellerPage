@@ -50,6 +50,9 @@ export default function ProductPage() {
     });
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const tc = page?.theme_config || {};
+  const detailStyle = tc.product_detail_style || "standard";
+
   const product = products.find(p => String(p.id) === String(id));
   if (!product) {
     return (
@@ -78,7 +81,6 @@ export default function ProductPage() {
   const discPct   = hasDisc ? Math.round((savedUnit / basePrice) * 100) : 0;
   const hasPromo  = !hasDisc && product.promo_enabled && Number(product.promo_price) > 0 && Number(product.promo_price) < basePrice;
   const promoPrice = hasPromo ? Number(product.promo_price) : null;
-  const promoPct  = hasPromo ? Math.round(((basePrice - promoPrice) / basePrice) * 100) : 0;
 
   const hasQty   = discount?.enabled_quantity && (discount?.quantity_tiers?.length ?? 0) > 0;
   const hasPrice = discount?.enabled_price    && (discount?.price_tiers?.length ?? 0) > 0;
@@ -97,7 +99,7 @@ export default function ProductPage() {
     <div className="store-root">
       <Navbar />
 
-      <main className="product-page">
+      <main data-ventaz-field="product_detail" className={`product-page product-page--${detailStyle}`}>
         {/* Breadcrumb */}
         <div className="breadcrumb">
           <button className="breadcrumb__back" onClick={() => navigate(-1)}>
@@ -107,7 +109,7 @@ export default function ProductPage() {
           <span className="breadcrumb__current">{name}</span>
         </div>
 
-        <div className="product-layout">
+        <div className={`product-layout product-layout--${detailStyle}`}>
           {/* ── Left: Gallery ────────────────────────────── */}
           <div className="product-gallery">
             <div className="product-gallery__main">
@@ -122,7 +124,7 @@ export default function ProductPage() {
               )}
               {(hasDisc || hasPromo) && (
                 <div className="product-gallery__badge">
-                  <Zap size={12} /> {hasDisc ? discPct : promoPct}% OFF
+                  <Zap size={12} /> {hasDisc ? `${discPct}% OFF` : "Precio promo"}
                 </div>
               )}
             </div>
@@ -176,9 +178,6 @@ export default function ProductPage() {
                 <>
                   <span className="product-details__price-orig">${fmt(basePrice)}</span>
                   <span className="product-details__price">${fmt(promoPrice)}</span>
-                  <span className="product-details__saving">
-                    {promoPct}% de descuento
-                  </span>
                 </>
               ) : hasDisc ? (
                 <>
@@ -277,7 +276,7 @@ export default function ProductPage() {
                 {added ? (
                   <><Check size={18} /> ¡Agregado!</>
                 ) : (
-                  <><ShoppingCart size={18} /> Agregar al carrito</>
+                  <><ShoppingCart size={18} /> {tc.product_btn_text || "Agregar al carrito"}</>
                 )}
               </button>
 
@@ -294,7 +293,7 @@ export default function ProductPage() {
         </div>
       </main>
 
-      {reviews.length > 0 && (
+      {tc.product_show_reviews !== false && reviews.length > 0 && (
         <section ref={reviewsRef} className="store-main" style={{ paddingTop: 0 }}>
           <div style={{ maxWidth: 700, margin: "0 auto" }}>
             <h2 style={{ fontSize: "1.125rem", fontWeight: 700, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>

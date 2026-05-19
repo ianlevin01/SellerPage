@@ -18,9 +18,8 @@ export default function ProductCard({ product, style }) {
   const savedUnit  = discItem?.savedPerUnit   ?? 0;
   const hasDisc    = !isCombo && savedUnit > 0.01;
   const discPct    = hasDisc ? Math.round((savedUnit / basePrice) * 100) : 0;
-  const hasPromo   = !isCombo && !hasDisc && product.promo_enabled && Number(product.promo_price) > 0 && Number(product.promo_price) < basePrice;
+  const hasPromo   = !hasDisc && product.promo_enabled && Number(product.promo_price) > 0 && Number(product.promo_price) < basePrice;
   const promoPrice = hasPromo ? Number(product.promo_price) : null;
-  const promoPct   = hasPromo ? Math.round(((basePrice - promoPrice) / basePrice) * 100) : 0;
   const imgUrl     = assetSrc((product.images || [])[0] || "");
   const name       = product.custom_name || product.name;
 
@@ -48,6 +47,8 @@ export default function ProductCard({ product, style }) {
       className={`pcard pcard--${cardStyle} pcard--${cardDensity}`}
       style={{ ...style, cursor: "pointer" }}
       onClick={handleClick}
+      data-ventaz-product-id={product.id}
+      data-ventaz-product-type={isCombo ? "combo" : "product"}
     >
       {/* Image */}
       <div className="pcard__img-wrap">
@@ -74,7 +75,7 @@ export default function ProductCard({ product, style }) {
         {hasPromo && (
           <div className="pcard__badge pcard__badge--promo">
             <Zap size={10} strokeWidth={2.5} />
-            {promoPct}% OFF
+            Precio promo
           </div>
         )}
 

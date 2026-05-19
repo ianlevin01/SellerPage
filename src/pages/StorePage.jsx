@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Search, X, ChevronRight, ShieldCheck, Truck, MessageCircle } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import Navbar          from "../components/Navbar";
@@ -10,9 +11,20 @@ import { assetSrc } from "../utils/asset";
 
 export default function StorePage() {
   const { page, products, combos } = useStore();
+  const location  = useLocation();
+  const navigate  = useNavigate();
   const tc = page?.theme_config || {};
   const [search, setSearch]     = useState("");
-  const [catFilter, setCatFilter] = useState(null);
+  const [catFilter, setCatFilter] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("cat") || null;
+  });
+
+  // Sync catFilter when URL ?cat param changes (e.g. from navbar category links)
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    setCatFilter(p.get("cat") || null); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [location.search]);
 
   const featuredCats = page.featured_categories;
   const baseProducts = useMemo(() => {
@@ -22,14 +34,17 @@ export default function StorePage() {
 
   // Normalize combos into product shape so ProductCard can render them uniformly
   const normalizedCombos = useMemo(() =>
-    (combos || []).map(c => ({
-      ...c,
-      is_combo:     true,
-      custom_name:  c.name,
-      precio_venta: Number(c.custom_price),
-      precio_1:     Number(c.custom_price),
-      images:       c.images || [],
-    })),
+    (combos || []).map(c => {
+      const hasPromo = c.promo_enabled && Number(c.promo_price) > 0 && Number(c.promo_price) < Number(c.custom_price);
+      return {
+        ...c,
+        is_combo:     true,
+        custom_name:  c.name,
+        precio_venta: hasPromo ? Number(c.promo_price) : Number(c.custom_price),
+        precio_1:     Number(c.custom_price),
+        images:       c.images || [],
+      };
+    }),
   [combos]);
 
   const categories = useMemo(() => {
@@ -44,7 +59,7 @@ export default function StorePage() {
 
   const filtered = useMemo(() => {
     // Category filter only applies to regular products; combos always show (unless search hides them)
-    const productList = catFilter ? baseProducts.filter(p => p.category_id === catFilter) : baseProducts;
+    const productList = catFilter ? baseProducts.filter(p => String(p.category_id) === String(catFilter)) : baseProducts;
     const q = search.toLowerCase();
     const filteredProducts = q
       ? productList.filter(p =>
@@ -59,18 +74,20 @@ export default function StorePage() {
     return [...filteredCombos, ...filteredProducts];
   }, [baseProducts, normalizedCombos, search, catFilter]);
 
-  const cardStyle = tc.card_style || "default";
-  const cardDensity = tc.card_density || "normal";
-  const buttonStyle = tc.button_style || "soft";
-  const heroLayout = tc.hero_layout || "center";
+  const cardStyle    = tc.card_style     || "default";
+  const cardDensity  = tc.card_density   || "normal";
+  const cardGap      = tc.card_gap       || "normal";
+  const buttonStyle  = tc.button_style   || "soft";
+  const heroLayout   = tc.hero_layout    || "center";
+  const categoryDisplay = tc.category_display || "pills";
 
   return (
-    <div className={`store-root store-root--${cardDensity} store-root--buttons-${buttonStyle}`}>
+    <div className={`store-root store-root--${cardDensity} store-root--buttons-${buttonStyle} store-root--gap-${cardGap}`}>
       <PromoBar />
       <Navbar />
 
       {/* ── Hero ──────────────────────────────────────────── */}
-      <section className="hero">
+      <section data-ventaz-field="hero" className="hero">
         {tc.hero_bg_type === "image" && page.hero_image_url ? (
           <>
             <img
@@ -149,7 +166,7 @@ export default function StorePage() {
         <DiscountBanner />
 
         {/* Products section */}
-        <section className="products-section">
+        <section data-ventaz-field="products" className="products-section">
           <div className="products-header">
             <h2 className="products-header__title">
               {search
@@ -163,24 +180,44 @@ export default function StorePage() {
             </span>
           </div>
 
-          {categories.length > 1 && (
-            <div className="cat-pills">
-              <button
-                className={`cat-pill${catFilter === null ? " cat-pill--active" : ""}`}
-                onClick={() => setCatFilter(null)}
-              >
-                Todos
-              </button>
-              {categories.map(cat => (
+          {categories.length > 1 && categoryDisplay !== "hidden" && (
+            categoryDisplay === "grid" ? (
+              <div className="cat-grid">
                 <button
-                  key={cat.id}
-                  className={`cat-pill${catFilter === cat.id ? " cat-pill--active" : ""}`}
-                  onClick={() => { setCatFilter(cat.id); setSearch(""); }}
+                  className={`cat-grid-card${catFilter === null ? " cat-grid-card--active" : ""}`}
+                  onClick={() => navigate("/", { replace: true })}
                 >
-                  {cat.name}
+                  <span>Todos</span>
                 </button>
-              ))}
-            </div>
+                {categories.map(cat => (
+                  <button
+                    key={cat.id}
+                    className={`cat-grid-card${String(catFilter) === String(cat.id) ? " cat-grid-card--active" : ""}`}
+                    onClick={() => { navigate(`/?cat=${cat.id}`, { replace: true }); setSearch(""); }}
+                  >
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="cat-pills">
+                <button
+                  className={`cat-pill${catFilter === null ? " cat-pill--active" : ""}`}
+                  onClick={() => navigate("/", { replace: true })}
+                >
+                  Todos
+                </button>
+                {categories.map(cat => (
+                  <button
+                    key={cat.id}
+                    className={`cat-pill${String(catFilter) === String(cat.id) ? " cat-pill--active" : ""}`}
+                    onClick={() => { navigate(`/?cat=${cat.id}`, { replace: true }); setSearch(""); }}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            )
           )}
 
           {filtered.length === 0 ? (

@@ -50,6 +50,7 @@ export default function Footer() {
 
   return (
     <footer
+      data-ventaz-field="footer"
       className="footer"
       style={{
         background: tc.footer_bg || "var(--footer-bg)",
