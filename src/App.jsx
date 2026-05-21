@@ -212,7 +212,10 @@ export default function App() {
       .then(res => {
         setPaymentResult(res.data);
         if (res.data?.status === "approved") {
-          trackPixel("Purchase", { currency: "ARS" });
+          trackPixel("Purchase", {
+            value:    res.data.amount ?? undefined,
+            currency: "ARS",
+          });
         }
       })
       .catch(() => setPaymentResult({ status: "error" }))
