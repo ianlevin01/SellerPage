@@ -188,8 +188,8 @@ export default function StorePage() {
               ))}
             </div>
           )}
-          {/* Pills without sticky search (search hidden by seller) */}
-          {!showStickySearch && categories.length > 1 && categoryDisplay === "pills" && (
+          {/* Pills — legacy fallback (categorías ahora en navbar hamburguesa) */}
+          {false && categories.length > 1 && categoryDisplay === "pills" && (
             <div className="cat-pills">
               <button
                 className={`cat-pill${catFilter === null ? " cat-pill--active" : ""}`}

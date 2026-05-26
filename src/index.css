@@ -80,20 +80,21 @@ a { color: var(--brand); text-decoration: none; }
 .notfound-screen p  { color: var(--text-3); }
 
 /* ── Store root ─────────────────────────────────────────────── */
-.store-root { min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
+/* overflow-x: clip en lugar de hidden para no romper position: sticky en hijos */
+.store-root { min-height: 100vh; display: flex; flex-direction: column; overflow-x: clip; }
 
 /* ── Navbar ─────────────────────────────────────────────────── */
 .navbar {
-  position: relative; top: 0; z-index: 40;
-  background: rgba(255,255,255,.85);
+  position: sticky; top: 0; z-index: 40;
+  background: rgba(255,255,255,.92);
   backdrop-filter: blur(12px) saturate(180%);
   -webkit-backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--border-light);
   box-shadow: var(--shadow-xs);
-  transition: background .2s, box-shadow .2s, color .2s;
+  transition: background .2s, box-shadow .2s, color .2s, height .2s;
 }
 .navbar--sticky {
-  position: sticky;
+  position: sticky; /* ya está en base, se mantiene por compatibilidad */
 }
 
 /* Estilo transparente — se fusiona con el hero */
