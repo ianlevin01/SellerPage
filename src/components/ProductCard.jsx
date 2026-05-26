@@ -23,13 +23,22 @@ export default function ProductCard({ product, style }) {
   const imgUrl     = assetSrc((product.images || [])[0] || "");
   const name       = product.custom_name || product.name;
 
-  // Qty-mode: next tier hint (only for regular products)
-  const isQty      = !isCombo && discount?.discount_type === "quantity" && discount?.enabled;
-  const tiers      = isQty
-    ? [...(discount.tiers || [])].sort((a, b) => Number(a.threshold) - Number(b.threshold))
+  const showDiscOnCards = page?.theme_config?.show_discount_on_cards !== false;
+
+  // Discount tiers for hints
+  const qtyTiers   = !isCombo && discount?.enabled_quantity
+    ? [...(discount.tiers || [])].filter(t => t.discount_type === "quantity").sort((a, b) => Number(a.threshold) - Number(b.threshold))
+    : [];
+  const priceTiers = !isCombo && discount?.enabled_price
+    ? [...(discount.tiers || [])].filter(t => t.discount_type === "price").sort((a, b) => Number(a.threshold) - Number(b.threshold))
     : [];
   const curQty     = cartItem?.qty ?? 0;
-  const nextTier   = tiers.find(t => Number(t.threshold) > curQty) || null;
+  const nextQtyTier = qtyTiers.find(t => Number(t.threshold) > curQty) || null;
+
+  // Legacy compat: some stores may use discount_type on the config root
+  const isQty = !isCombo && (discount?.enabled_quantity || (discount?.discount_type === "quantity" && discount?.enabled));
+  const tiers  = isQty ? qtyTiers : [];
+  const nextTier = nextQtyTier;
 
   function handleAdd(e) {
     e.stopPropagation();
@@ -139,16 +148,25 @@ export default function ProductCard({ product, style }) {
           )}
         </div>
 
-        {/* Next tier hint */}
-        {isQty && nextTier && curQty > 0 && (
+        {/* Discount hints */}
+        {showDiscOnCards && !isCombo && curQty > 0 && nextQtyTier && (
           <p className="pcard__hint">
-            +{Number(nextTier.threshold) - curQty} para {nextTier.discount_pct}% OFF
+            +{Number(nextQtyTier.threshold) - curQty} para {nextQtyTier.discount_pct}% OFF
           </p>
         )}
-        {isQty && tiers.length > 0 && curQty === 0 && (
-          <p className="pcard__hint">
-            Desde {tiers[0].threshold} u. → {tiers[0].discount_pct}% OFF
-          </p>
+        {showDiscOnCards && !isCombo && curQty === 0 && (qtyTiers.length > 0 || priceTiers.length > 0) && (
+          <div className="pcard__disc-summary">
+            {qtyTiers.length > 0 && (
+              <span className="pcard__disc-tag">
+                <Zap size={9} /> Desde {qtyTiers[0].threshold} u. → {qtyTiers[0].discount_pct}% OFF
+              </span>
+            )}
+            {priceTiers.length > 0 && (
+              <span className="pcard__disc-tag">
+                <Zap size={9} /> Desde ${fmt(Number(priceTiers[0].threshold))} → {priceTiers[0].discount_pct}% OFF
+              </span>
+            )}
+          </div>
         )}
       </div>
     </article>

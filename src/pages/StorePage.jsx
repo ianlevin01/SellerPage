@@ -80,6 +80,18 @@ export default function StorePage() {
   const buttonStyle  = tc.button_style   || "soft";
   const heroLayout   = tc.hero_layout    || "center";
   const categoryDisplay = tc.category_display || "pills";
+  const heroWaveShape   = tc.hero_wave_shape   || "wave";
+  const heroBgPattern   = tc.hero_bg_pattern   || "circles";
+
+  const wavePaths = {
+    wave:     "M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z",
+    straight: "M0,0 L1440,0 L1440,80 L0,80 Z",
+    diagonal: "M0,0 L1440,40 L1440,80 L0,80 Z",
+    double:   "M0,20 C240,60 480,0 720,40 C960,80 1200,20 1440,40 L1440,80 L0,80 Z",
+  };
+
+  const showStickySearch = tc.show_search_bar !== false;
+  const showCatsInSearch = showStickySearch && categories.length > 1 && categoryDisplay === "pills";
 
   return (
     <div className={`store-root store-root--${cardDensity} store-root--buttons-${buttonStyle} store-root--gap-${cardGap}`}>
@@ -99,7 +111,7 @@ export default function StorePage() {
             <div className="hero__overlay" />
           </>
         ) : (
-          <div className="hero__shapes" aria-hidden="true">
+          <div className={`hero__shapes hero__shapes--${heroBgPattern}`} aria-hidden="true">
             <div className="hero__shape hero__shape--1" />
             <div className="hero__shape hero__shape--2" />
             <div className="hero__shape hero__shape--3" />
@@ -134,33 +146,53 @@ export default function StorePage() {
         </div>
         <div className="hero__wave">
           <svg viewBox="0 0 1440 80" preserveAspectRatio="none">
-            <path d="M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z" fill={page.color_bg || "#fafafa"} />
+            <path d={wavePaths[heroWaveShape] || wavePaths.wave} fill={page.color_bg || "#fafafa"} />
           </svg>
         </div>
       </section>
 
+      {/* ── Sticky search + category bar ──────────────────── */}
+      {showStickySearch && (
+        <div className="search-bar-wrap">
+          <div className="search-bar">
+            <Search size={16} className="search-bar__icon" />
+            <input
+              className="search-bar__input"
+              placeholder="Buscar productos..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button className="search-bar__clear" onClick={() => setSearch("")}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {showCatsInSearch && (
+            <div className="cat-pills cat-pills--inline">
+              <button
+                className={`cat-pill${catFilter === null ? " cat-pill--active" : ""}`}
+                onClick={() => navigate("/", { replace: true })}
+              >
+                Todos
+              </button>
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  className={`cat-pill${String(catFilter) === String(cat.id) ? " cat-pill--active" : ""}`}
+                  onClick={() => { navigate(`/?cat=${cat.id}`, { replace: true }); setSearch(""); }}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Main content ──────────────────────────────────── */}
       <main className="store-main">
-
-        {/* Search bar */}
-        {tc.show_search_bar !== false && (
-          <div className="search-bar-wrap">
-            <div className="search-bar">
-              <Search size={16} className="search-bar__icon" />
-              <input
-                className="search-bar__input"
-                placeholder="Buscar productos..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-              {search && (
-                <button className="search-bar__clear" onClick={() => setSearch("")}>
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Discount banner */}
         <DiscountBanner />
@@ -180,44 +212,45 @@ export default function StorePage() {
             </span>
           </div>
 
-          {categories.length > 1 && categoryDisplay !== "hidden" && (
-            categoryDisplay === "grid" ? (
-              <div className="cat-grid">
+          {/* Category grid (only shown when display=grid; pills mode is in sticky bar above) */}
+          {categories.length > 1 && categoryDisplay === "grid" && (
+            <div className="cat-grid">
+              <button
+                className={`cat-grid-card${catFilter === null ? " cat-grid-card--active" : ""}`}
+                onClick={() => navigate("/", { replace: true })}
+              >
+                <span>Todos</span>
+              </button>
+              {categories.map(cat => (
                 <button
-                  className={`cat-grid-card${catFilter === null ? " cat-grid-card--active" : ""}`}
-                  onClick={() => navigate("/", { replace: true })}
+                  key={cat.id}
+                  className={`cat-grid-card${String(catFilter) === String(cat.id) ? " cat-grid-card--active" : ""}`}
+                  onClick={() => { navigate(`/?cat=${cat.id}`, { replace: true }); setSearch(""); }}
                 >
-                  <span>Todos</span>
+                  <span>{cat.name}</span>
                 </button>
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    className={`cat-grid-card${String(catFilter) === String(cat.id) ? " cat-grid-card--active" : ""}`}
-                    onClick={() => { navigate(`/?cat=${cat.id}`, { replace: true }); setSearch(""); }}
-                  >
-                    <span>{cat.name}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="cat-pills">
+              ))}
+            </div>
+          )}
+          {/* Pills without sticky search (search hidden by seller) */}
+          {!showStickySearch && categories.length > 1 && categoryDisplay === "pills" && (
+            <div className="cat-pills">
+              <button
+                className={`cat-pill${catFilter === null ? " cat-pill--active" : ""}`}
+                onClick={() => navigate("/", { replace: true })}
+              >
+                Todos
+              </button>
+              {categories.map(cat => (
                 <button
-                  className={`cat-pill${catFilter === null ? " cat-pill--active" : ""}`}
-                  onClick={() => navigate("/", { replace: true })}
+                  key={cat.id}
+                  className={`cat-pill${String(catFilter) === String(cat.id) ? " cat-pill--active" : ""}`}
+                  onClick={() => { navigate(`/?cat=${cat.id}`, { replace: true }); setSearch(""); }}
                 >
-                  Todos
+                  {cat.name}
                 </button>
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    className={`cat-pill${String(catFilter) === String(cat.id) ? " cat-pill--active" : ""}`}
-                    onClick={() => { navigate(`/?cat=${cat.id}`, { replace: true }); setSearch(""); }}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-            )
+              ))}
+            </div>
           )}
 
           {filtered.length === 0 ? (

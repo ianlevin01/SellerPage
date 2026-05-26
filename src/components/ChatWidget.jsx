@@ -4,10 +4,20 @@ import client from "../api/client";
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
 
-function sessionKey(slug) { return `chat_session_${slug}`; }
+function sessionKey(slug)  { return `chat_session_${slug}`; }
+function lastSeenKey(slug) { return `chat_last_seen_${slug}`; }
 
 function loadSession(slug) {
   try { return JSON.parse(localStorage.getItem(sessionKey(slug))); } catch { return null; }
+}
+
+function loadLastSeen(slug) {
+  const v = localStorage.getItem(lastSeenKey(slug));
+  return v ? new Date(v) : null;
+}
+
+function saveLastSeen(slug) {
+  localStorage.setItem(lastSeenKey(slug), new Date().toISOString());
 }
 
 function fmtTime(dateStr) {
@@ -63,6 +73,7 @@ export default function ChatWidget({ slug }) {
   const [msgInput, setMsgInput] = useState("");
   const [sending, setSending]   = useState(false);
   const [quoteSent, setQuoteSent] = useState(false);
+  const [unread, setUnread]     = useState(false);
 
   // Start-conversation form
   const [form, setForm]         = useState({ customer_name: "", customer_email: "", customer_phone: "", body: "" });
@@ -81,11 +92,28 @@ export default function ChatWidget({ slug }) {
     try {
       const res = await client.get(`/store/${slug}/chat/${convId}/messages?token=${token}`);
       setMessages(res.data);
-    } catch { /* ignore poll errors */ }
+      return res.data;
+    } catch { return null; }
   }
+
+  // Check for unread seller messages on mount (when session exists but chat is closed)
+  useEffect(() => {
+    if (!session) return;
+    const lastSeen = loadLastSeen(slug);
+    fetchMessages(session.conversation_id, session.access_token).then(msgs => {
+      if (!msgs) return;
+      const hasNew = msgs.some(
+        m => m.sender === "seller" && (!lastSeen || new Date(m.created_at) > lastSeen)
+      );
+      setUnread(hasNew);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !session) return;
+    // Mark as read when chat opens
+    saveLastSeen(slug);
+    setUnread(false);
     setLoadingMsgs(true);
     fetchMessages(session.conversation_id, session.access_token)
       .finally(() => setLoadingMsgs(false));
@@ -164,6 +192,7 @@ export default function ChatWidget({ slug }) {
         aria-label={open ? "Cerrar chat" : "Abrir chat"}
       >
         {open ? <ChevronDown size={22} /> : <MessageSquare size={22} />}
+        {!open && unread && <span className="chat-fab__badge" aria-label="Mensajes nuevos" />}
       </button>
 
       {/* Chat panel */}

@@ -160,13 +160,38 @@ function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, is
   if (phase === "input") {
     return (
       <div className="checkout-step" key="shipping-input">
-        <h2 className="checkout-step__title">¿A dónde enviamos tu pedido?</h2>
+        <h2 className="checkout-step__title">¿Cómo recibís tu pedido?</h2>
+
+        {/* Quick pickup bypass */}
+        <button
+          type="button"
+          className="shipping-method-card"
+          onClick={() => { selectType("pickup"); setPhase("method"); }}
+          style={{
+            width: "100%", marginBottom: 16,
+            padding: "14px 16px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+            border: "2px solid var(--border, #e2e2e2)",
+            background: "var(--surface, #fff)",
+            display: "flex", alignItems: "center", gap: 12,
+          }}
+        >
+          <Package size={20} style={{ flexShrink: 0, color: "var(--brand)" }} />
+          <div>
+            <strong style={{ fontSize: ".875rem", display: "block" }}>Pasar a buscar</strong>
+            <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>Retiro en el local · Sin costo</span>
+          </div>
+        </button>
+
+        <div style={{ textAlign: "center", margin: "4px 0 12px", fontSize: ".8rem", color: "var(--text-secondary)" }}>
+          — o cotizá el envío —
+        </div>
+
         <div className="checkout-form">
           <div className="form-field">
             <label className="form-label">
               Código postal{" "}
               <span style={{ fontWeight: 400, color: "var(--text-secondary)" }}>
-                (opcional — para cotizar envío)
+                (para ver opciones de envío)
               </span>
             </label>
             <input
@@ -183,7 +208,7 @@ function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, is
         <button className="btn-next" onClick={handleFetchRates} disabled={fetchingRates}>
           {fetchingRates
             ? <><Loader2 size={16} className="spin" /> Cotizando...</>
-            : <>Continuar <ChevronRight size={16} /></>}
+            : <>Ver opciones de envío <ChevronRight size={16} /></>}
         </button>
       </div>
     );
@@ -241,12 +266,11 @@ function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, is
           >
             <MapPin size={20} color={shipping.type === "home" ? "var(--brand, #6366f1)" : undefined} />
             <strong style={{ fontSize: ".875rem" }}>Envío a domicilio</strong>
-            {shippingAvail && homeRates[0] && (
-              <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>
-                desde ${fmt(homeRates[0].price)}
-                {homeRates[0].delivery_days ? ` · ${homeRates[0].delivery_days} días` : ""}
-              </span>
-            )}
+            <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>
+              {shippingAvail && homeRates[0]
+                ? `desde $${fmt(homeRates[0].price)} · `
+                : ""}2 a 5 días hábiles
+            </span>
           </button>
         )}
 
@@ -263,12 +287,11 @@ function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, is
           >
             <Building2 size={20} color={shipping.type === "branch" ? "var(--brand, #6366f1)" : undefined} />
             <strong style={{ fontSize: ".875rem" }}>Retiro en sucursal</strong>
-            {shippingAvail && branchRates[0] && (
-              <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>
-                desde ${fmt(branchRates[0].price)}
-                {branchRates[0].delivery_days ? ` · ${branchRates[0].delivery_days} días` : ""}
-              </span>
-            )}
+            <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>
+              {shippingAvail && branchRates[0]
+                ? `desde $${fmt(branchRates[0].price)} · `
+                : ""}2 a 5 días hábiles
+            </span>
           </button>
         )}
 
@@ -641,6 +664,7 @@ export default function CheckoutPage({ slug }) {
           contact_phone: customer.phone || null,
         },
       });
+      trackPixel("Venta_Mayorista", { value: grandTotal, currency: "ARS" });
       navigate(`/chat/${res.data.id}?token=${res.data.access_token}`);
     } catch (err) {
       const msg = err.response?.data?.message || "No se pudo iniciar la consulta. Intentá de nuevo.";
@@ -929,8 +953,8 @@ export default function CheckoutPage({ slug }) {
                   )}
                   {shipping.type === "pickup" && (
                     <div className="pay-summary-card__row">
-                      <span className="pay-summary-card__label">Dirección</span>
-                      <span>Pasteur 280, CABA</span>
+                      <span className="pay-summary-card__label">Info</span>
+                      <span>El vendedor coordinará el retiro con vos</span>
                     </div>
                   )}
                   {shipping.type === "branch" && shipping.branch_name && (
