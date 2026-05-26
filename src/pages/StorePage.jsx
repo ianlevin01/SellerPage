@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Search, X, ChevronRight, ShieldCheck, Truck, MessageCircle } from "lucide-react";
+import { ChevronRight, ShieldCheck, Truck, MessageCircle } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import Navbar          from "../components/Navbar";
 import PromoBar        from "../components/PromoBar";
@@ -10,11 +10,10 @@ import DiscountBanner  from "../components/DiscountBanner";
 import { assetSrc } from "../utils/asset";
 
 export default function StorePage() {
-  const { page, products, combos } = useStore();
+  const { page, products, combos, search, setSearch } = useStore();
   const location  = useLocation();
   const navigate  = useNavigate();
   const tc = page?.theme_config || {};
-  const [search, setSearch]     = useState("");
   const [catFilter, setCatFilter] = useState(() => {
     const p = new URLSearchParams(window.location.search);
     return p.get("cat") || null;
@@ -90,9 +89,6 @@ export default function StorePage() {
     double:   "M0,20 C240,60 480,0 720,40 C960,80 1200,20 1440,40 L1440,80 L0,80 Z",
   };
 
-  const showStickySearch = tc.show_search_bar !== false;
-  const showCatsInSearch = showStickySearch && categories.length > 1 && categoryDisplay === "pills";
-
   return (
     <div className={`store-root store-root--${cardDensity} store-root--buttons-${buttonStyle} store-root--gap-${cardGap}`}>
       <PromoBar />
@@ -150,46 +146,6 @@ export default function StorePage() {
           </svg>
         </div>
       </section>
-
-      {/* ── Sticky search + category bar ──────────────────── */}
-      {showStickySearch && (
-        <div className="search-bar-wrap">
-          <div className="search-bar">
-            <Search size={16} className="search-bar__icon" />
-            <input
-              className="search-bar__input"
-              placeholder="Buscar productos..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
-              <button className="search-bar__clear" onClick={() => setSearch("")}>
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          {showCatsInSearch && (
-            <div className="cat-pills cat-pills--inline">
-              <button
-                className={`cat-pill${catFilter === null ? " cat-pill--active" : ""}`}
-                onClick={() => navigate("/", { replace: true })}
-              >
-                Todos
-              </button>
-              {categories.map(cat => (
-                <button
-                  key={cat.id}
-                  className={`cat-pill${String(catFilter) === String(cat.id) ? " cat-pill--active" : ""}`}
-                  onClick={() => { navigate(`/?cat=${cat.id}`, { replace: true }); setSearch(""); }}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Main content ──────────────────────────────────── */}
       <main className="store-main">

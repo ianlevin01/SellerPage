@@ -30,6 +30,7 @@ function loadCart(slug, products, combos) {
 export function StoreProvider({ storeData, children }) {
   const slug = storeData.page?.slug;
   const [cart, setCart] = useState(() => loadCart(slug, storeData.products, storeData.combos));
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     try {
@@ -110,6 +111,7 @@ export function StoreProvider({ storeData, children }) {
       products: storeData.products,
       combos: storeData.combos || [],
       discount: storeData.discount,
+      search, setSearch,
       cart, addToCart, addComboToCart, updateQty, setQty, removeFromCart, clearCart,
       discountResult, finalTotal, cartCount, totalSaved, allCartFreeShipping,
     }}>
