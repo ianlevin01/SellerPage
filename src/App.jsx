@@ -91,10 +91,17 @@ function applyMetaTags(pg) {
   if (pg.meta_description) setMeta("og:description", pg.meta_description, true);
   if (pg.og_image_url) setMeta("og:image", pg.og_image_url, true);
 
-  if (pg.favicon_url) {
+  // favicon_url tiene prioridad; si no hay uno específico, usar el logo de la tienda
+  const faviconHref = pg.favicon_url || pg.logo_url || null;
+  if (faviconHref) {
     let link = document.querySelector("link[rel~='icon']");
     if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
-    link.href = pg.favicon_url;
+    link.href = faviconHref;
+    link.type = faviconHref.match(/\.(png|jpe?g|webp)/i) ? "image/png" : "image/svg+xml";
+    // Apple touch icon
+    let apple = document.querySelector("link[rel='apple-touch-icon']");
+    if (!apple) { apple = document.createElement("link"); apple.rel = "apple-touch-icon"; document.head.appendChild(apple); }
+    apple.href = faviconHref;
   }
 }
 
