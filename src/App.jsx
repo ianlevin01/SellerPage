@@ -147,22 +147,36 @@ function initEditMode() {
 
 function scrollPreviewTo(target) {
   const selectors = {
-    footer: ".footer",
-    hero: ".hero",
-    products: ".products-section",
-    catalogo: ".products-section",
-    search: ".search-bar-wrap",
-    header: ".navbar",
-    promo: ".promo-bar",
+    // editor section names
+    identidad: ".navbar",
+    tema:      null,               // colores/fuentes, sin sección visual específica
+    cabecera:  ".promo-bar",
+    portada:   ".hero",
+    catalogo:  ".products-section",
+    producto:  ".products-section",
+    pie:       ".footer",
+    seo:       null,               // sin sección visual
+    // legacy aliases
+    footer:    ".footer",
+    hero:      ".hero",
+    products:  ".products-section",
+    search:    ".search-bar-wrap",
+    header:    ".navbar",
+    navbar:    ".navbar",
+    promo:     ".promo-bar",
   };
 
   const selector = selectors[target];
-  if (!selector) return;
+  if (!selector) {
+    // sin sección específica: ir al top
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
 
   requestAnimationFrame(() => {
     const el = document.querySelector(selector);
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: target === "footer" ? "end" : "start" });
+    el.scrollIntoView({ behavior: "smooth", block: target === "footer" || target === "pie" ? "end" : "start" });
   });
 }
 
@@ -178,6 +192,12 @@ export default function App() {
   // Real-time preview updates from the SellerSystem editor
   useEffect(() => {
     function handler(e) {
+      // Scroll to section when the editor tab changes
+      if (e.data?.type === "ventaz_scroll_to") {
+        scrollPreviewTo(e.data.section);
+        return;
+      }
+
       if (e.data?.type !== "ventaz_preview") return;
 
       const payload = e.data.payload || {};

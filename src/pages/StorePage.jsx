@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ChevronRight, ShieldCheck, Truck, MessageCircle } from "lucide-react";
 import { useStore } from "../context/StoreContext";
@@ -8,6 +8,8 @@ import Footer          from "../components/Footer";
 import ProductCard     from "../components/ProductCard";
 import DiscountBanner  from "../components/DiscountBanner";
 import { assetSrc } from "../utils/asset";
+
+const PAGE_SIZE = 24;
 
 export default function StorePage() {
   const { page, products, combos, search, setSearch } = useStore();
@@ -19,11 +21,30 @@ export default function StorePage() {
     return p.get("cat") || null;
   });
 
+  // ── Infinite scroll ────────────────────────────────────────────
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef(null);
+
   // Sync catFilter when URL ?cat param changes (e.g. from navbar category links)
   useEffect(() => {
     const p = new URLSearchParams(location.search);
     setCatFilter(p.get("cat") || null); // eslint-disable-line react-hooks/set-state-in-effect
   }, [location.search]);
+
+  // Reset visible count when filters change
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search, catFilter]);
+
+  // IntersectionObserver: load more when sentinel enters viewport
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) setVisibleCount(n => n + PAGE_SIZE); },
+      { rootMargin: "200px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   const featuredCats = page.featured_categories;
   const baseProducts = useMemo(() => {
@@ -217,18 +238,25 @@ export default function StorePage() {
               <button className="btn-ghost" onClick={() => setSearch("")}>Limpiar búsqueda</button>
             </div>
           ) : (
-            <div
-              className="products-grid"
-              style={{ '--products-cols': tc.products_cols ?? 3 }}
-            >
-              {filtered.map((p, i) => (
-                <ProductCard
-                  key={p.id}
-                  product={p}
-                  style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
-                />
-              ))}
-            </div>
+            <>
+              <div
+                className="products-grid"
+                style={{ '--products-cols': tc.products_cols ?? 3 }}
+              >
+                {filtered.slice(0, visibleCount).map((p, i) => (
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+                  />
+                ))}
+              </div>
+
+              {/* Sentinel — invisible, dispara el observer cuando llega al viewport */}
+              {visibleCount < filtered.length && (
+                <div ref={sentinelRef} style={{ height: 1 }} aria-hidden="true" />
+              )}
+            </>
           )}
         </section>
       </main>
