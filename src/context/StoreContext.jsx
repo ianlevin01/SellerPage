@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { applyDiscount, cartFinalTotal } from "../utils/discount";
 import { trackPixel } from "../utils/pixel";
+import client from "../api/client";
 
 const StoreContext = createContext(null);
 
@@ -23,7 +24,7 @@ function loadCart(slug, products, combos) {
     );
     return saved
       .filter(i => productMap[i.id])
-      .map(i => ({ ...productMap[i.id], qty: i.qty }));
+      .map(i => ({ ...productMap[i.id], qty: i.qty, selected_color: i.selected_color || null }));
   } catch { return []; }
 }
 
@@ -34,11 +35,19 @@ export function StoreProvider({ storeData, children }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(cartKey(slug), JSON.stringify(cart.map(i => ({ id: i.id, qty: i.qty }))));
+      localStorage.setItem(cartKey(slug), JSON.stringify(cart.map(i => ({ id: i.id, qty: i.qty, selected_color: i.selected_color || null }))));
     } catch {}
   }, [cart, slug]);
 
-  function addToCart(product) {
+  function trackCartCreation() {
+    const key = `cart_tracked_${slug}`;
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, "1");
+      client.post(`/seller/store/public/${slug}/track/cart`).catch(() => {});
+    }
+  }
+
+  function addToCart(product, selectedColor = null) {
     trackPixel("AddToCart", {
       value:        Number(product.precio_venta || 0),
       currency:     "ARS",
@@ -47,9 +56,13 @@ export function StoreProvider({ storeData, children }) {
       content_name: product.custom_name || product.name,
     });
     setCart(prev => {
+      if (prev.length === 0) trackCartCreation();
       const ex = prev.find(i => i.id === product.id);
-      if (ex) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { ...product, qty: 1 }];
+      if (ex) return prev.map(i => i.id === product.id
+        ? { ...i, qty: i.qty + 1, selected_color: selectedColor ?? i.selected_color }
+        : i
+      );
+      return [...prev, { ...product, qty: 1, selected_color: selectedColor }];
     });
   }
 
@@ -99,6 +112,7 @@ export function StoreProvider({ storeData, children }) {
       content_name: combo.name,
     });
     setCart(prev => {
+      if (prev.length === 0) trackCartCreation(); // primer combo → carrito creado
       const ex = prev.find(i => i.id === combo.id);
       if (ex) return prev.map(i => i.id === combo.id ? { ...i, qty: i.qty + 1 } : i);
       return [...prev, { ...item, qty: 1 }];

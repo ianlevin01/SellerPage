@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Minus, ShoppingCart, Zap, Tag, Check, ChevronRight, TrendingDown, Star } from "lucide-react";
+
+function isDark(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}
 import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
 import { assetSrc } from "../utils/asset";
@@ -21,14 +26,36 @@ function StarRow({ rating }) {
   );
 }
 
+function DescriptionBlock({ desc, style }) {
+  const [expanded, setExpanded] = useState(false);
+  const isCollapsed = style === 'collapsed';
+  return (
+    <div className={`product-details__desc product-details__desc--${style}${isCollapsed && expanded ? ' is-expanded' : ''}`}>
+      <h3>Descripción</h3>
+      <div className="product-details__desc-body">
+        {desc.startsWith('<')
+          ? <div dangerouslySetInnerHTML={{ __html: desc }} />
+          : <p style={{ whiteSpace: 'pre-line' }}>{desc}</p>
+        }
+      </div>
+      {isCollapsed && !expanded && (
+        <button type="button" className="pd-read-more" onClick={() => setExpanded(true)}>
+          Leer más
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { products, page, cart, addToCart, updateQty, discountResult, discount, cartCount } = useStore();
-  const [imgIdx,   setImgIdx]   = useState(0);
-  const [added,    setAdded]    = useState(false);
-  const [reviews,  setReviews]  = useState([]);
-  const [showAll,  setShowAll]  = useState(false);
+  const [imgIdx,        setImgIdx]        = useState(0);
+  const [added,         setAdded]         = useState(false);
+  const [reviews,       setReviews]       = useState([]);
+  const [showAll,       setShowAll]       = useState(false);
+  const [selectedColor, setSelectedColor] = useState(null);
   const reviewsRef = useRef(null);
 
   useEffect(() => {
@@ -69,7 +96,10 @@ export default function ProductPage() {
   const images    = product.images?.length ? product.images : [];
   const name      = product.custom_name || product.name;
   const desc      = product.custom_desc  || product.description;
-  const cartItem  = cart.find(i => i.id === product.id);
+  const cartItem      = cart.find(i => i.id === product.id);
+  const hasColors     = product.colors_enabled && Array.isArray(product.colors) && product.colors.length > 0;
+  const activeColor   = selectedColor ?? (cartItem?.selected_color || null);
+  const canAddToCart  = !hasColors || activeColor !== null;
 
   const avgRating    = reviews.length ? Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) : 0;
   const visibleReviews = showAll ? reviews : reviews.slice(0, 3);
@@ -90,7 +120,8 @@ export default function ProductPage() {
   const subtotal = discountResult.subtotal ?? 0;
 
   function handleAdd() {
-    addToCart(product);
+    if (!canAddToCart) return;
+    addToCart(product, activeColor);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   }
@@ -99,7 +130,7 @@ export default function ProductPage() {
     <div className="store-root">
       <Navbar />
 
-      <main data-ventaz-field="product_detail" className={`product-page product-page--${detailStyle}`}>
+      <main data-ventaz-field="product_detail" className={`product-page product-page--${detailStyle} product-page--image-${tc.product_image_layout || 'bottom'}`}>
         {/* Breadcrumb */}
         <div className="breadcrumb">
           <button className="breadcrumb__back" onClick={() => navigate(-1)}>
@@ -109,7 +140,7 @@ export default function ProductPage() {
           <span className="breadcrumb__current">{name}</span>
         </div>
 
-        <div className={`product-layout product-layout--${detailStyle}`}>
+        <div className={`product-layout product-layout--${detailStyle} product-layout--image-${tc.product_image_layout || 'bottom'}`}>
           {/* ── Left: Gallery ────────────────────────────── */}
           <div className="product-gallery">
             <div className="product-gallery__main">
@@ -177,18 +208,18 @@ export default function ProductPage() {
               {hasPromo ? (
                 <>
                   <span className="product-details__price-orig">${fmt(basePrice)}</span>
-                  <span className="product-details__price">${fmt(promoPrice)}</span>
+                  <span className={`product-details__price product-details__price--${tc.product_price_size || 'normal'}`}>${fmt(promoPrice)}</span>
                 </>
               ) : hasDisc ? (
                 <>
                   <span className="product-details__price-orig">${fmt(basePrice)}</span>
-                  <span className="product-details__price">${fmt(effPrice)}</span>
+                  <span className={`product-details__price product-details__price--${tc.product_price_size || 'normal'}`}>${fmt(effPrice)}</span>
                   <span className="product-details__saving">
                     Ahorrás ${fmt(savedUnit)} por unidad
                   </span>
                 </>
               ) : (
-                <span className="product-details__price">${fmt(basePrice)}</span>
+                <span className={`product-details__price product-details__price--${tc.product_price_size || 'normal'}`}>${fmt(basePrice)}</span>
               )}
             </div>
 
@@ -244,12 +275,55 @@ export default function ProductPage() {
 
             {/* Description */}
             {desc && (
-              <div className="product-details__desc">
-                <h3>Descripción</h3>
-                {desc.startsWith("<") ? (
-                  <div className="product-desc-html" dangerouslySetInnerHTML={{ __html: desc }} />
-                ) : (
-                  <p>{desc}</p>
+              <DescriptionBlock desc={desc} style={tc.product_desc_style || 'full'} />
+            )}
+
+            {/* Color selector */}
+            {hasColors && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: ".85rem", fontWeight: 600, marginBottom: 10, color: "var(--store-text, #333)" }}>
+                  Color:{" "}
+                  {activeColor
+                    ? <span style={{ fontWeight: 700 }}>{activeColor.name}</span>
+                    : <span style={{ fontWeight: 400, color: "var(--store-text-muted, #9ca3af)" }}>Seleccioná un color</span>
+                  }
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {product.colors.map((c, i) => {
+                    const isSelected = activeColor?.hex === c.hex && activeColor?.name === c.name;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        title={c.name}
+                        onClick={() => setSelectedColor(c)}
+                        style={{
+                          width: 36, height: 36, borderRadius: "50%",
+                          background: c.hex,
+                          border: isSelected ? "3px solid var(--brand, #4db81a)" : "2px solid #e5e7eb",
+                          outline: isSelected ? "2px solid var(--brand, #4db81a)" : "none",
+                          outlineOffset: 2,
+                          cursor: "pointer",
+                          boxShadow: isSelected ? "0 0 0 2px #fff inset" : "none",
+                          transition: "border .15s, outline .15s",
+                          position: "relative",
+                        }}
+                      >
+                        {isSelected && (
+                          <Check
+                            size={14}
+                            color={isDark(c.hex) ? "#fff" : "#000"}
+                            style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!canAddToCart && (
+                  <p style={{ fontSize: ".8rem", color: "#f59e0b", marginTop: 8, fontWeight: 500 }}>
+                    Seleccioná un color para continuar
+                  </p>
                 )}
               </div>
             )}
@@ -272,6 +346,8 @@ export default function ProductPage() {
               <button
                 className={`btn-add-cart ${added ? "btn-add-cart--added" : ""}`}
                 onClick={handleAdd}
+                disabled={!canAddToCart}
+                style={!canAddToCart ? { opacity: 0.5, cursor: "not-allowed" } : {}}
               >
                 {added ? (
                   <><Check size={18} /> ¡Agregado!</>

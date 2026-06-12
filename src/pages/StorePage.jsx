@@ -52,19 +52,18 @@ export default function StorePage() {
     return products.filter(p => featuredCats.includes(p.category_id));
   }, [products, featuredCats]);
 
-  // Normalize combos into product shape so ProductCard can render them uniformly
+  // Normalize combos into product shape so ProductCard can render them uniformly.
+  // precio_venta is always the regular price — ProductCard reads promo_price + promo_enabled
+  // directly from the combo to decide whether to show the strikethrough.
   const normalizedCombos = useMemo(() =>
-    (combos || []).map(c => {
-      const hasPromo = c.promo_enabled && Number(c.promo_price) > 0 && Number(c.promo_price) < Number(c.custom_price);
-      return {
-        ...c,
-        is_combo:     true,
-        custom_name:  c.name,
-        precio_venta: hasPromo ? Number(c.promo_price) : Number(c.custom_price),
-        precio_1:     Number(c.custom_price),
-        images:       c.images || [],
-      };
-    }),
+    (combos || []).map(c => ({
+      ...c,
+      is_combo:     true,
+      custom_name:  c.name,
+      precio_venta: Number(c.custom_price),
+      precio_1:     Number(c.custom_price),
+      images:       c.images || [],
+    })),
   [combos]);
 
   const categories = useMemo(() => {

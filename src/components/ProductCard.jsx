@@ -25,23 +25,27 @@ export default function ProductCard({ product, style }) {
 
   const showDiscOnCards = page?.theme_config?.show_discount_on_cards !== false;
 
-  // Discount tiers for hints
-  const qtyTiers   = !isCombo && discount?.enabled_quantity
-    ? [...(discount.tiers || [])].filter(t => t.discount_type === "quantity").sort((a, b) => Number(a.threshold) - Number(b.threshold))
+  // Discount tiers for hints — API returns quantity_tiers / price_tiers (not discount.tiers)
+  const qtyTiers   = discount?.enabled_quantity
+    ? [...(discount.quantity_tiers || [])].sort((a, b) => Number(a.threshold) - Number(b.threshold))
     : [];
-  const priceTiers = !isCombo && discount?.enabled_price
-    ? [...(discount.tiers || [])].filter(t => t.discount_type === "price").sort((a, b) => Number(a.threshold) - Number(b.threshold))
+  const priceTiers = discount?.enabled_price
+    ? [...(discount.price_tiers || [])].sort((a, b) => Number(a.threshold) - Number(b.threshold))
     : [];
   const curQty     = cartItem?.qty ?? 0;
   const nextQtyTier = qtyTiers.find(t => Number(t.threshold) > curQty) || null;
 
   // Legacy compat: some stores may use discount_type on the config root
-  const isQty = !isCombo && (discount?.enabled_quantity || (discount?.discount_type === "quantity" && discount?.enabled));
+  const isQty = discount?.enabled_quantity || (discount?.discount_type === "quantity" && discount?.enabled);
   const tiers  = isQty ? qtyTiers : [];
   const nextTier = nextQtyTier;
 
   function handleAdd(e) {
     e.stopPropagation();
+    if (!isCombo && product.colors_enabled && product.colors?.length > 0) {
+      navigate(`/product/${product.id}`);
+      return;
+    }
     if (isCombo) addComboToCart(product);
     else addToCart(product);
   }
@@ -81,12 +85,15 @@ export default function ProductCard({ product, style }) {
             {discPct}% OFF
           </div>
         )}
-        {hasPromo && (
-          <div className="pcard__badge pcard__badge--promo">
-            <Zap size={10} strokeWidth={2.5} />
-            Precio promo
-          </div>
-        )}
+        {hasPromo && (() => {
+          const promoPct = Math.round(((basePrice - promoPrice) / basePrice) * 100);
+          return (
+            <div className="pcard__badge pcard__badge--promo">
+              <Zap size={10} strokeWidth={2.5} />
+              {promoPct > 0 ? `${promoPct}% OFF` : "Precio promo"}
+            </div>
+          );
+        })()}
 
         {/* Free shipping badge */}
         {product.free_shipping && (
@@ -149,12 +156,12 @@ export default function ProductCard({ product, style }) {
         </div>
 
         {/* Discount hints */}
-        {showDiscOnCards && !isCombo && curQty > 0 && nextQtyTier && (
+        {showDiscOnCards && curQty > 0 && nextQtyTier && (
           <p className="pcard__hint">
             +{Number(nextQtyTier.threshold) - curQty} para {nextQtyTier.discount_pct}% OFF
           </p>
         )}
-        {showDiscOnCards && !isCombo && curQty === 0 && (qtyTiers.length > 0 || priceTiers.length > 0) && (
+        {showDiscOnCards && curQty === 0 && (qtyTiers.length > 0 || priceTiers.length > 0) && (
           <div className="pcard__disc-summary">
             {qtyTiers.length > 0 && (
               <span className="pcard__disc-tag">

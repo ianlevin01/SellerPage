@@ -82,9 +82,10 @@ function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, is
 
   async function handleFetchRates() {
     if (!shipping.postal_code.trim()) {
-      setPhase("method");
+      setErrors(e => ({ ...e, postal_code: "Ingresá tu código postal para ver las opciones de envío" }));
       return;
     }
+    setErrors({});
     setFetchingRates(true);
     try {
       const res = await client.get(`/seller/store/public/${slug}/shipping/rates`, {
@@ -162,30 +163,6 @@ function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, is
       <div className="checkout-step" key="shipping-input">
         <h2 className="checkout-step__title">¿Cómo recibís tu pedido?</h2>
 
-        {/* Quick pickup bypass */}
-        <button
-          type="button"
-          className="shipping-method-card"
-          onClick={() => { selectType("pickup"); setPhase("method"); }}
-          style={{
-            width: "100%", marginBottom: 16,
-            padding: "14px 16px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-            border: "2px solid var(--border, #e2e2e2)",
-            background: "var(--surface, #fff)",
-            display: "flex", alignItems: "center", gap: 12,
-          }}
-        >
-          <Package size={20} style={{ flexShrink: 0, color: "var(--brand)" }} />
-          <div>
-            <strong style={{ fontSize: ".875rem", display: "block" }}>Pasar a buscar</strong>
-            <span style={{ fontSize: ".8rem", color: "var(--text-secondary)" }}>Retiro en el local · Sin costo</span>
-          </div>
-        </button>
-
-        <div style={{ textAlign: "center", margin: "4px 0 12px", fontSize: ".8rem", color: "var(--text-secondary)" }}>
-          — o cotizá el envío —
-        </div>
-
         <div className="checkout-form">
           <div className="form-field">
             <label className="form-label">
@@ -200,9 +177,12 @@ function ShippingStep({ slug, shipping, setShipping, onNext, onBack, allFree, is
               maxLength={8}
               placeholder="Ej: 1414"
               value={shipping.postal_code}
-              onChange={e => setShipping(s => ({ ...s, postal_code: e.target.value }))}
+              onChange={e => { setShipping(s => ({ ...s, postal_code: e.target.value })); setErrors({}); }}
               onKeyDown={e => e.key === "Enter" && handleFetchRates()}
             />
+            {errors.postal_code && (
+              <p style={{ margin: "6px 0 0", fontSize: ".8rem", color: "#ef4444" }}>{errors.postal_code}</p>
+            )}
           </div>
         </div>
         <button className="btn-next" onClick={handleFetchRates} disabled={fetchingRates}>
@@ -575,10 +555,13 @@ export default function CheckoutPage({ slug }) {
           notes:     customer.notes,
         },
         items: discountResult.items.map(i => ({
-          product_id: i.is_combo ? null : i.id,
-          name:       i.custom_name || i.name,
-          quantity:   i.qty,
-          unit_price: i.effectivePrice,
+          product_id:           i.is_combo ? null : i.id,
+          combo_id:             i.is_combo ? i.id : null,
+          name:                 i.custom_name || i.name,
+          quantity:             i.qty,
+          unit_price:           i.effectivePrice,
+          selected_color_name:  i.selected_color?.name || null,
+          selected_color_hex:   i.selected_color?.hex  || null,
         })),
         shipping: {
           type:          shipping.type,
@@ -649,10 +632,13 @@ export default function CheckoutPage({ slug }) {
         customer_city:  shipping.city || "",
         customer_notes: customer.notes || null,
         order_items: discountResult.items.map(i => ({
-          product_id: i.is_combo ? null : i.id,
-          name:       i.custom_name || i.name,
-          quantity:   i.qty,
-          unit_price: i.effectivePrice,
+          product_id:           i.is_combo ? null : i.id,
+          combo_id:             i.is_combo ? i.id : null,
+          name:                 i.custom_name || i.name,
+          quantity:             i.qty,
+          unit_price:           i.effectivePrice,
+          selected_color_name:  i.selected_color?.name || null,
+          selected_color_hex:   i.selected_color?.hex  || null,
         })),
         grand_total:  grandTotal,
         shipping_info: {
@@ -888,7 +874,26 @@ export default function CheckoutPage({ slug }) {
                 </div>
               </div>
 
-              <button className="btn-next" onClick={() => { if (validateStep2()) setStep(3); }}>
+              <button className="btn-next" onClick={() => {
+                if (!validateStep2()) return;
+                // Guardar carrito abandonado en background — no bloquea la navegación
+                client.post(`/seller/purchase/public/${slug}/abandoned-cart`, {
+                  customer: {
+                    email:     customer.email,
+                    name:      `${customer.firstName} ${customer.lastName}`.trim(),
+                    phone:     customer.phone,
+                    docType:   customer.docType,
+                    docNumber: customer.docNumber,
+                  },
+                  items: discountResult.items.map(i => ({
+                    name:      i.custom_name || i.name,
+                    quantity:  i.qty,
+                    unit_price: i.effectivePrice,
+                  })),
+                  total: grandTotal,
+                }).catch(() => {});
+                setStep(3);
+              }}>
                 Continuar <ChevronRight size={16} />
               </button>
             </div>

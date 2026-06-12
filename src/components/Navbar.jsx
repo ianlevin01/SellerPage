@@ -15,11 +15,13 @@ export default function Navbar() {
   const showSearch   = tc.show_search_bar !== false;
 
   // ── Scroll detection ────────────────────────────────────────────
-  const [scrolled,       setScrolled]       = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false); // compact mode click
-  const [filterOpen,     setFilterOpen]     = useState(false);
-  const searchInputRef = useRef(null);
-  const filterRef      = useRef(null);
+  const [scrolled,          setScrolled]          = useState(false);
+  const [searchExpanded,    setSearchExpanded]    = useState(false); // compact mode click
+  const [filterOpen,        setFilterOpen]        = useState(false);
+  const [mobileSearchOpen,  setMobileSearchOpen]  = useState(false);
+  const searchInputRef     = useRef(null);
+  const mobileSearchRef    = useRef(null);
+  const filterRef          = useRef(null);
 
   useEffect(() => {
     function handleScroll() {
@@ -76,14 +78,18 @@ export default function Navbar() {
   }
 
   function handleSearchIconClick() {
-    // En mobile (input oculto): hacer scroll al top para revelar el input
-    // En desktop compact: expandir inline
     if (window.innerWidth < 641) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      setMobileSearchOpen(true);
+      setTimeout(() => mobileSearchRef.current?.focus(), 40);
     } else {
       setSearchExpanded(true);
       setTimeout(() => searchInputRef.current?.focus(), 40);
     }
+  }
+
+  function closeMobileSearch() {
+    setMobileSearchOpen(false);
+    setSearch("");
   }
 
   // Mostrar input completo o solo ícono según scroll + expansión
@@ -103,6 +109,27 @@ export default function Navbar() {
         scrolled     ? "navbar--compact" : "",
       ].filter(Boolean).join(" ")}
     >
+      {/* ── Mobile search overlay ─────────────────── */}
+      {mobileSearchOpen && (
+        <div className="navbar__mobile-search">
+          <Search size={16} className="navbar__mobile-search-icon" />
+          <input
+            ref={mobileSearchRef}
+            className="navbar__mobile-search-input"
+            placeholder="Buscar productos..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <button
+            className="navbar__mobile-search-close"
+            onClick={closeMobileSearch}
+            aria-label="Cerrar búsqueda"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       <div className="navbar__inner">
 
         {/* ── Logo / Store name ──────────────────────── */}

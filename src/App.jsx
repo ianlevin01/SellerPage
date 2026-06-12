@@ -14,11 +14,35 @@ import ChatWidget    from "./components/ChatWidget";
 import PaymentResult  from "./components/PaymentResult";
 import LoadingScreen  from "./components/LoadingScreen";
 
+// ── Auto-update: reload when a new build is detected ──────────────────────────
+function getCurrentBundleId() {
+  const main = [...document.querySelectorAll("script[src]")]
+    .find(s => s.src.includes("/assets/index-"));
+  if (!main) return null;
+  const m = main.src.match(/\/assets\/index-([^.]+)\.js/);
+  return m ? m[1] : null;
+}
+
+async function checkForUpdate() {
+  try {
+    const currentId = getCurrentBundleId();
+    if (!currentId) return;
+    const res  = await fetch("/index.html?_=" + Date.now(), { cache: "no-store" });
+    const html = await res.text();
+    const m    = html.match(/\/assets\/index-([^.]+)\.js/);
+    if (m && m[1] !== currentId) window.location.reload();
+  } catch {}
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 function ScrollToTop() {
   const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); }, [pathname]);
   return null;
 }
+
+// Disable browser scroll restoration — we manage it ourselves
+if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 
 function PixelPageView() {
   const { pathname } = useLocation();
@@ -45,8 +69,22 @@ function detectSlug() {
   return sessionStorage.getItem("storeSlug") || null;
 }
 
+function contrastColor(hex) {
+  if (!hex || hex.length < 4) return '#ffffff';
+  const clean = hex.replace('#','');
+  const r = parseInt(clean.slice(0,2),16);
+  const g = parseInt(clean.slice(2,4),16);
+  const b = parseInt(clean.slice(4,6),16);
+  return (0.299*r + 0.587*g + 0.114*b) > 155 ? '#000000' : '#ffffff';
+}
+
 function applyPageTheme(pg) {
   const root  = document.documentElement;
+  // Aplicar data-theme para el sistema de temas CSS
+  const previewTheme = new URLSearchParams(window.location.search).get("preview_theme");
+  const themeId = previewTheme || pg.theme_id || pg.theme_config?.theme_id || "default";
+  root.setAttribute("data-theme", themeId);
+
   const color = pg.banner_color || "#4db81a";
   const tc = pg.theme_config || {};
 
@@ -68,6 +106,57 @@ function applyPageTheme(pg) {
   root.style.setProperty("--footer-bg", tc.footer_bg || "#0a0f09");
   root.style.setProperty("--footer-text-color", tc.footer_text_color || "#ffffff");
   root.style.setProperty("--products-cols", tc.products_cols ?? 3);
+
+  // Per-section custom colors
+  const navbarColor = tc.navbar_color || null;
+  if (navbarColor) {
+    root.style.setProperty('--navbar-custom-bg', navbarColor);
+    root.style.setProperty('--navbar-custom-text', contrastColor(navbarColor));
+  } else {
+    root.style.removeProperty('--navbar-custom-bg');
+    root.style.removeProperty('--navbar-custom-text');
+  }
+
+  const promoColor = tc.promo_color || null;
+  if (promoColor) {
+    root.style.setProperty('--promo-custom-bg', promoColor);
+    root.style.setProperty('--promo-custom-text', contrastColor(promoColor));
+  } else {
+    root.style.removeProperty('--promo-custom-bg');
+    root.style.removeProperty('--promo-custom-text');
+  }
+
+  if (tc.card_price_color) root.style.setProperty('--card-price-color', tc.card_price_color);
+  else root.style.removeProperty('--card-price-color');
+
+  const heroBtnColor = tc.hero_btn_color || null;
+  if (heroBtnColor) {
+    root.style.setProperty('--hero-btn-custom', heroBtnColor);
+    root.style.setProperty('--hero-btn-custom-text', contrastColor(heroBtnColor));
+  } else {
+    root.style.removeProperty('--hero-btn-custom');
+    root.style.removeProperty('--hero-btn-custom-text');
+  }
+
+  const productBtnColor = tc.product_btn_color || null;
+  if (productBtnColor) {
+    root.style.setProperty('--product-btn-custom', productBtnColor);
+    root.style.setProperty('--product-btn-custom-text', contrastColor(productBtnColor));
+  } else {
+    root.style.removeProperty('--product-btn-custom');
+    root.style.removeProperty('--product-btn-custom-text');
+  }
+
+  const cardBtnColor = tc.card_btn_color || null;
+  if (cardBtnColor) {
+    root.style.setProperty('--card-btn-custom', cardBtnColor);
+    root.style.setProperty('--card-btn-custom-text', contrastColor(cardBtnColor));
+  } else {
+    root.style.removeProperty('--card-btn-custom');
+    root.style.removeProperty('--card-btn-custom-text');
+  }
+
+  root.style.setProperty('--card-border-width', tc.card_show_border === true ? '2px' : '0px');
 
   if (pg.font_family) {
     root.style.setProperty("--font-body", `'${pg.font_family}', sans-serif`);
@@ -187,7 +276,15 @@ export default function App() {
   const [storeData, setStoreData] = useState(null);
   const [loading, setLoading]     = useState(true);
   const [notFound, setNotFound]   = useState(false);
-  const [paymentResult, setPaymentResult] = useState(null); // { status, payment_id }
+  const [paymentResult, setPaymentResult] = useState(null);
+  const previewTheme = new URLSearchParams(window.location.search).get("preview_theme");
+
+  // Reload when user returns to this tab and a new build is available
+  useEffect(() => {
+    const onVisibility = () => { if (!document.hidden) checkForUpdate(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   // Real-time preview updates from the SellerSystem editor
   useEffect(() => {
@@ -263,6 +360,12 @@ export default function App() {
         const pg = res.data.page || {};
         applyPageTheme(pg);
         applyMetaTags(pg);
+        // Contar solo una vez por sesión de navegador (evita recargas duplicadas)
+        const sessionKey = `visited_${slug}`;
+        if (!sessionStorage.getItem(sessionKey)) {
+          sessionStorage.setItem(sessionKey, "1");
+          client.post(`/seller/store/public/${slug}/track/visit`).catch(() => {});
+        }
         if (pg.font_family) {
           const link = document.createElement("link");
           link.rel  = "stylesheet";
@@ -281,6 +384,19 @@ export default function App() {
 
   return (
     <StoreProvider storeData={storeData}>
+      {previewTheme && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+          background: "#111827", color: "#f9fafb", padding: "10px 20px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          fontSize: 13, fontFamily: "Inter, sans-serif", boxShadow: "0 2px 8px rgba(0,0,0,.4)",
+        }}>
+          <span>👁 Vista previa del tema — los cambios <strong>no se guardarán</strong> hasta que hagas clic en "Aplicar tema"</span>
+          <button onClick={() => window.close()} style={{ background: "#374151", border: "none", color: "#f9fafb", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>
+            Cerrar preview
+          </button>
+        </div>
+      )}
       {paymentResult && (
         <PaymentResult result={paymentResult} onClose={() => setPaymentResult(null)} />
       )}
