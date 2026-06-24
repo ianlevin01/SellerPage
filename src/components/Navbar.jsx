@@ -25,9 +25,12 @@ export default function Navbar() {
 
   useEffect(() => {
     function handleScroll() {
-      const past = window.scrollY > 60;
-      setScrolled(past);
-      if (!past) setSearchExpanded(false); // reset cuando vuelve al top
+      const y = window.scrollY;
+      setScrolled(prev => {
+        if (!prev && y > 80)  return true;   // expandido → compacto: umbral alto
+        if (prev  && y < 30)  { setSearchExpanded(false); return false; } // compacto → expandido: umbral bajo
+        return prev; // zona intermedia: no cambiar
+      });
     }
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);

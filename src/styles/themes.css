@@ -73,6 +73,16 @@ html[data-theme="ventaz_clasico"] .chat-send-btn { background: #4db81a; border-r
 /* ═══════════════════════════════════════════════════════════════
    2. TECH NEÓN — Oscuro, digital, glass effects, indigo
    ═══════════════════════════════════════════════════════════════ */
+html[data-theme="tech_neon"] {
+  --bg:           #0f0f23;
+  --surface:      #14142a;
+  --surface-2:    #0a0a1e;
+  --text-1:       #e2e8f0;
+  --text-2:       #94a3b8;
+  --text-3:       #475569;
+  --border:       rgba(99,102,241,.22);
+  --border-light: rgba(99,102,241,.12);
+}
 html[data-theme="tech_neon"] body { background: #0f0f23; }
 
 html[data-theme="tech_neon"] .navbar {
@@ -449,6 +459,16 @@ html[data-theme="mascotas"] .chat-submit-btn, html[data-theme="mascotas"] .chat-
 /* ═══════════════════════════════════════════════════════════════
    8. FITNESS ACTIVE — Oscuro, verde energía, diagonal, deportivo
    ═══════════════════════════════════════════════════════════════ */
+html[data-theme="fitness_active"] {
+  --bg:           #0a0a0a;
+  --surface:      #1a1a1a;
+  --surface-2:    #111111;
+  --text-1:       #e8e8e8;
+  --text-2:       #999999;
+  --text-3:       #555555;
+  --border:       rgba(255,255,255,.1);
+  --border-light: rgba(255,255,255,.06);
+}
 html[data-theme="fitness_active"] body { background: #0a0a0a; }
 
 html[data-theme="fitness_active"] .navbar {
@@ -578,6 +598,16 @@ html[data-theme="mayorista"] .chat-submit-btn, html[data-theme="mayorista"] .cha
 /* ═══════════════════════════════════════════════════════════════
    10. PREMIUM DARK — Casi negro, dorado, sofisticado, hero alto
    ═══════════════════════════════════════════════════════════════ */
+html[data-theme="premium_dark"] {
+  --bg:           #0a0a14;
+  --surface:      #0e0e20;
+  --surface-2:    #060614;
+  --text-1:       #e8e8f0;
+  --text-2:       #9999aa;
+  --text-3:       #555577;
+  --border:       rgba(212,175,55,.14);
+  --border-light: rgba(212,175,55,.08);
+}
 html[data-theme="premium_dark"] body { background: #0a0a14; }
 
 html[data-theme="premium_dark"] .navbar {
@@ -710,6 +740,16 @@ html[data-theme="kids_toys"] .chat-submit-btn, html[data-theme="kids_toys"] .cha
 /* ═══════════════════════════════════════════════════════════════
    12. INDUSTRIAL — Oscuro, naranja fuerte, robusto, angular
    ═══════════════════════════════════════════════════════════════ */
+html[data-theme="industrial"] {
+  --bg:           #111111;
+  --surface:      #1a1a1a;
+  --surface-2:    #0d0d0d;
+  --text-1:       #e8e8e8;
+  --text-2:       #888888;
+  --text-3:       #555555;
+  --border:       rgba(255,255,255,.1);
+  --border-light: rgba(255,255,255,.06);
+}
 html[data-theme="industrial"] body { background: #111111; }
 
 html[data-theme="industrial"] .navbar {

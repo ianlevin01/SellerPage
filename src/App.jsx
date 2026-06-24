@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import client from "./api/client";
 import { StoreProvider } from "./context/StoreContext";
@@ -94,8 +94,54 @@ function applyPageTheme(pg) {
   root.style.setProperty("--brand-rgb",   hexToRgb(color));
 
   if (pg.color_secondary) root.style.setProperty("--brand-secondary", pg.color_secondary);
-  root.style.setProperty("--store-bg",   pg.color_bg   || "#fafafa");
-  root.style.setProperty("--store-text", pg.color_text || "#09090b");
+  const bgColor = pg.color_bg || null;
+  root.style.setProperty("--store-bg", bgColor || "#fafafa");
+
+  const DARK_THEMES = new Set([
+    "tech_neon","premium_dark","fitness_active","industrial",
+    "urban_dark","noir_market","gadget_pulse","auto_sport",
+  ]);
+  const isBgDark    = bgColor ? contrastColor(bgColor) === "#ffffff" : false;
+  const isThemeDark = DARK_THEMES.has(themeId);
+  root.setAttribute("data-tone", (isBgDark || isThemeDark) ? "dark" : "light");
+
+  // Si el fondo es oscuro y el seller no configuró color de texto, usar texto claro
+  const storeText = pg.color_text
+    || (isBgDark ? "#f1f1f1" : "#09090b");
+  root.style.setProperty("--store-text", storeText);
+
+  if (bgColor) {
+    root.style.setProperty("--bg", bgColor);
+    if (isBgDark) {
+      root.style.setProperty("--surface",      lightenHex(bgColor, 22));
+      root.style.setProperty("--surface-2",    lightenHex(bgColor, 10));
+      root.style.setProperty("--text-1",       "#f1f1f1");
+      root.style.setProperty("--text-2",       "#a0a0a8");
+      root.style.setProperty("--text-3",       "#666677");
+      root.style.setProperty("--text-4",       "#888899");
+      root.style.setProperty("--border",       "rgba(255,255,255,0.1)");
+      root.style.setProperty("--border-light", "rgba(255,255,255,0.06)");
+    } else {
+      root.style.removeProperty("--surface");
+      root.style.removeProperty("--surface-2");
+      root.style.removeProperty("--text-1");
+      root.style.removeProperty("--text-2");
+      root.style.removeProperty("--text-3");
+      root.style.removeProperty("--text-4");
+      root.style.removeProperty("--border");
+      root.style.removeProperty("--border-light");
+    }
+  } else {
+    root.style.removeProperty("--bg");
+    root.style.removeProperty("--surface");
+    root.style.removeProperty("--surface-2");
+    root.style.removeProperty("--text-1");
+    root.style.removeProperty("--text-2");
+    root.style.removeProperty("--text-3");
+    root.style.removeProperty("--text-4");
+    root.style.removeProperty("--border");
+    root.style.removeProperty("--border-light");
+  }
 
   root.style.setProperty("--card-radius", `${pg.card_border_radius ?? 16}px`);
   root.style.setProperty("--card-shadow", pg.card_show_shadow !== false ? "var(--shadow-sm)" : "none");
@@ -106,15 +152,19 @@ function applyPageTheme(pg) {
   root.style.setProperty("--footer-bg", tc.footer_bg || "#0a0f09");
   root.style.setProperty("--footer-text-color", tc.footer_text_color || "#ffffff");
   root.style.setProperty("--products-cols", tc.products_cols ?? 3);
+  const gapMap = { tight: "6px", none: "0px", normal: "20px" };
+  root.style.setProperty("--products-gap", gapMap[tc.card_gap] || "20px");
 
   // Per-section custom colors
   const navbarColor = tc.navbar_color || null;
   if (navbarColor) {
     root.style.setProperty('--navbar-custom-bg', navbarColor);
     root.style.setProperty('--navbar-custom-text', contrastColor(navbarColor));
+    root.style.setProperty('--catbar-bg', darkenHex(navbarColor, 15));
   } else {
     root.style.removeProperty('--navbar-custom-bg');
     root.style.removeProperty('--navbar-custom-text');
+    root.style.removeProperty('--catbar-bg');
   }
 
   const promoColor = tc.promo_color || null;
@@ -157,6 +207,28 @@ function applyPageTheme(pg) {
   }
 
   root.style.setProperty('--card-border-width', tc.card_show_border === true ? '2px' : '0px');
+
+  // card_style + card_show_border → CSS vars consumed by structural theme pcard overrides
+  const cardStyle   = tc.card_style || "default";
+  const showBorder  = tc.card_show_border;
+  const borderMap   = { minimal: "none", bordered: "2px solid var(--brand)", floating: "none" };
+  const shadowMap2  = { floating: "0 4px 20px rgba(0,0,0,.12)", minimal: "none", bordered: "none" };
+  const shadowHover = { floating: "0 8px 32px rgba(0,0,0,.18)", minimal: "none", bordered: "none" };
+
+  let pcardBorder      = borderMap[cardStyle]   ?? null;
+  let pcardShadow      = shadowMap2[cardStyle]  ?? null;
+  let pcardShadowHover = shadowHover[cardStyle] ?? null;
+
+  // Explicit card_show_border always overrides card_style's border decision
+  if (showBorder === false) pcardBorder = "none";
+  else if (showBorder === true) pcardBorder = "2px solid var(--brand)";
+
+  if (pcardBorder      !== null) root.style.setProperty("--pcard-border",       pcardBorder);
+  else                           root.style.removeProperty("--pcard-border");
+  if (pcardShadow      !== null) root.style.setProperty("--pcard-shadow",       pcardShadow);
+  else                           root.style.removeProperty("--pcard-shadow");
+  if (pcardShadowHover !== null) root.style.setProperty("--pcard-shadow-hover", pcardShadowHover);
+  else                           root.style.removeProperty("--pcard-shadow-hover");
 
   if (pg.font_family) {
     root.style.setProperty("--font-body", `'${pg.font_family}', sans-serif`);
@@ -235,37 +307,33 @@ function initEditMode() {
 }
 
 function scrollPreviewTo(target) {
-  const selectors = {
-    // editor section names
-    identidad: ".navbar",
-    tema:      null,               // colores/fuentes, sin sección visual específica
-    cabecera:  ".promo-bar",
-    portada:   ".hero",
-    catalogo:  ".products-section",
-    producto:  ".products-section",
-    pie:       ".footer",
-    seo:       null,               // sin sección visual
-    // legacy aliases
-    footer:    ".footer",
-    hero:      ".hero",
-    products:  ".products-section",
-    search:    ".search-bar-wrap",
-    header:    ".navbar",
-    navbar:    ".navbar",
-    promo:     ".promo-bar",
+  // Maps section names → data-ventaz-field values
+  const fieldMap = {
+    identidad: "navbar",
+    cabecera:  "promo_bar",
+    portada:   "hero",
+    catalogo:  "products",
+    producto:  "products",
+    pie:       "footer",
+    footer:    "footer",
+    hero:      "hero",
+    products:  "products",
+    header:    "navbar",
+    navbar:    "navbar",
+    promo:     "promo_bar",
   };
 
-  const selector = selectors[target];
-  if (!selector) {
-    // sin sección específica: ir al top
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    return;
-  }
+  const field = fieldMap[target];
+  if (!field) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+
+  // Fallback CSS selectors for legacy layout
+  const legacy = { navbar: ".navbar", hero: ".hero", products: ".products-section", footer: ".footer", promo_bar: ".promo-bar" };
+  const atEnd  = field === "footer";
 
   requestAnimationFrame(() => {
-    const el = document.querySelector(selector);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: target === "footer" || target === "pie" ? "end" : "start" });
+    const el = document.querySelector(`[data-ventaz-field="${field}"]`)
+      || document.querySelector(legacy[field] || "#__none__");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: atEnd ? "end" : "start" });
   });
 }
 
@@ -273,10 +341,12 @@ initEditMode();
 
 export default function App() {
   const slug = detectSlug();
-  const [storeData, setStoreData] = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [notFound, setNotFound]   = useState(false);
+  const [storeData, setStoreData]         = useState(null);
+  const [loading, setLoading]             = useState(true);
+  const [notFound, setNotFound]           = useState(false);
   const [paymentResult, setPaymentResult] = useState(null);
+  // Separate state for layout override so it always triggers a StorePage re-render
+  const [previewLayout, setPreviewLayout] = useState(undefined);
   const previewTheme = new URLSearchParams(window.location.search).get("preview_theme");
 
   // Reload when user returns to this tab and a new build is available
@@ -302,6 +372,11 @@ export default function App() {
       const cleanPayload = { ...payload };
       delete cleanPayload.__preview_target;
       delete cleanPayload.__preview_section;
+
+      // Layout change: update dedicated state so StorePage re-renders immediately
+      if (cleanPayload.theme_config && 'layout' in cleanPayload.theme_config) {
+        setPreviewLayout(cleanPayload.theme_config.layout ?? null);
+      }
 
       setStoreData(prev => {
         if (!prev) return prev;
@@ -379,11 +454,27 @@ export default function App() {
       .finally(() => setLoading(false));
   }, [slug]);
 
+  // Merge previewLayout into storeData so StorePage picks it up via context
+  // Must be before early returns to respect Rules of Hooks
+  const storeDataForProvider = useMemo(() => {
+    if (!storeData || previewLayout === undefined) return storeData;
+    return {
+      ...storeData,
+      page: {
+        ...storeData.page,
+        theme_config: {
+          ...storeData.page?.theme_config,
+          layout: previewLayout,
+        }
+      }
+    };
+  }, [storeData, previewLayout]);
+
   if (loading) return <LoadingScreen />;
   if (notFound || !storeData) return <NotFound />;
 
   return (
-    <StoreProvider storeData={storeData}>
+    <StoreProvider storeData={storeDataForProvider}>
       {previewTheme && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,

@@ -4,7 +4,8 @@ import { useStore } from "../context/StoreContext";
 import { fmt } from "../utils/discount";
 import { assetSrc } from "../utils/asset";
 
-export default function ProductCard({ product, style }) {
+// quickAddMode: "overlay" (default) | "none" (navigate only) | "bottom" (always-visible buy button)
+export default function ProductCard({ product, style, quickAddMode = "overlay" }) {
   const { page, cart, addToCart, addComboToCart, updateQty, discountResult, discount } = useStore();
   const cardStyle = page?.theme_config?.card_style || "default";
   const cardDensity = page?.theme_config?.card_density || "normal";
@@ -55,6 +56,8 @@ export default function ProductCard({ product, style }) {
     else navigate(`/product/${product.id}`);
   }
 
+  const useOverlay = quickAddMode === "overlay";
+
   return (
     <article
       className={`pcard pcard--${cardStyle} pcard--${cardDensity}`}
@@ -103,8 +106,8 @@ export default function ProductCard({ product, style }) {
           </div>
         )}
 
-        {/* Quick-add overlay */}
-        {!cartItem ? (
+        {/* Quick-add overlay — only in overlay mode */}
+        {useOverlay && (!cartItem ? (
           <button className="pcard__quick-add" onClick={handleAdd}>
             <ShoppingCart size={15} />
             Agregar al carrito
@@ -119,7 +122,7 @@ export default function ProductCard({ product, style }) {
               <Plus size={13} />
             </button>
           </div>
-        )}
+        ))}
       </div>
 
       {/* Body */}
@@ -154,6 +157,25 @@ export default function ProductCard({ product, style }) {
             <span className="pcard__price">${fmt(basePrice)}</span>
           )}
         </div>
+
+        {/* Bottom buy button — for quickAddMode="bottom" */}
+        {quickAddMode === "bottom" && (
+          !cartItem ? (
+            <button className="pcard__buy-btn" onClick={handleAdd}>
+              Comprar
+            </button>
+          ) : (
+            <div className="pcard__buy-qty" onClick={e => e.stopPropagation()}>
+              <button className="pcard__qbtn-b" onClick={() => updateQty(product.id, -1)}>
+                <Minus size={13} />
+              </button>
+              <span className="pcard__qnum">{cartItem.qty}</span>
+              <button className="pcard__qbtn-b" onClick={() => updateQty(product.id, +1)}>
+                <Plus size={13} />
+              </button>
+            </div>
+          )
+        )}
 
         {/* Discount hints */}
         {showDiscOnCards && curQty > 0 && nextQtyTier && (

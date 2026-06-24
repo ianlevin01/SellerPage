@@ -7,11 +7,25 @@ import PromoBar        from "../components/PromoBar";
 import Footer          from "../components/Footer";
 import ProductCard     from "../components/ProductCard";
 import DiscountBanner  from "../components/DiscountBanner";
+import RecifeLayout    from "../layouts/RecifeLayout";
+import BrasiliaLayout  from "../layouts/BrasiliaLayout";
+import LimaLayout      from "../layouts/LimaLayout";
+import AmazonasLayout  from "../layouts/AmazonasLayout";
 import { assetSrc } from "../utils/asset";
 
 const PAGE_SIZE = 24;
 
 export default function StorePage() {
+  const { page } = useStore();
+  const layout = page?.theme_config?.layout;
+  if (layout === "recife")   return <RecifeLayout />;
+  if (layout === "brasilia") return <BrasiliaLayout />;
+  if (layout === "lima")     return <LimaLayout />;
+  if (layout === "amazonas") return <AmazonasLayout />;
+  return <DefaultStorePage />;
+}
+
+function DefaultStorePage() {
   const { page, products, combos, search, setSearch } = useStore();
   const location  = useLocation();
   const navigate  = useNavigate();

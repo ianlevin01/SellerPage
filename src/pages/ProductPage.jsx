@@ -11,8 +11,7 @@ import { fmt } from "../utils/discount";
 import { assetSrc } from "../utils/asset";
 import { trackPixel } from "../utils/pixel";
 import client from "../api/client";
-import Navbar  from "../components/Navbar";
-import Footer  from "../components/Footer";
+import LayoutShell from "../layouts/LayoutShell";
 
 function StarRow({ rating }) {
   return (
@@ -83,13 +82,12 @@ export default function ProductPage() {
   const product = products.find(p => String(p.id) === String(id));
   if (!product) {
     return (
-      <div className="store-root">
-        <Navbar />
+      <LayoutShell>
         <div className="not-found-inline">
           <p>Producto no encontrado.</p>
           <button className="btn-back" onClick={() => navigate("/")}>← Volver</button>
         </div>
-      </div>
+      </LayoutShell>
     );
   }
 
@@ -127,9 +125,7 @@ export default function ProductPage() {
   }
 
   return (
-    <div className="store-root">
-      <Navbar />
-
+    <LayoutShell>
       <main data-ventaz-field="product_detail" className={`product-page product-page--${detailStyle} product-page--image-${tc.product_image_layout || 'bottom'}`}>
         {/* Breadcrumb */}
         <div className="breadcrumb">
@@ -223,59 +219,40 @@ export default function ProductPage() {
               )}
             </div>
 
-            {/* Discount tiers */}
+            {/* Discount tiers — compact inline list */}
             {(hasQty || hasPrice) && (
-              <div className={`pd-disc-block${hasQty && hasPrice ? " pd-disc-block--both" : ""}`}>
-                {hasQty && (
-                  <div className="pd-disc-section">
-                    <div className="pd-disc-header"><Tag size={12} /> Descuentos por cantidad</div>
-                    <div className="pd-disc-tiers">
-                      {qTiers.map((t, i) => {
-                        const reached = cartQty >= Number(t.threshold);
-                        return (
-                          <div key={i} className={`pd-tier ${reached ? "pd-tier--on" : ""}`}>
-                            {reached && <Check size={10} className="pd-tier__check" />}
-                            <span className="pd-tier__pct">{t.discount_pct}%</span>
-                            <span className="pd-tier__off">OFF</span>
-                            <span className="pd-tier__label">{t.threshold}+ u.</span>
-                          </div>
-                        );
-                      })}
+              <div className="pd-disc-compact">
+                {hasQty && qTiers.map((t, i) => {
+                  const reached = cartQty >= Number(t.threshold);
+                  return (
+                    <div key={`q${i}`} className={`pd-disc-row${reached ? " pd-disc-row--on" : ""}`}>
+                      <span className="pd-disc-row__pct">{t.discount_pct}% OFF</span>
+                      <span className="pd-disc-row__label">
+                        {reached && <Check size={11} />} comprando {t.threshold}+ unidades
+                      </span>
                     </div>
-                    {cartQty > 0 && (() => {
-                      const next = qTiers.find(t => Number(t.threshold) > cartQty);
-                      return next ? (
-                        <p className="pd-disc-hint">
-                          <Zap size={11} /> Agregá <strong>{Number(next.threshold) - cartQty}</strong> más → {next.discount_pct}% OFF
-                        </p>
-                      ) : null;
-                    })()}
-                  </div>
-                )}
-                {hasPrice && (
-                  <div className="pd-disc-section">
-                    <div className="pd-disc-header"><TrendingDown size={12} /> Descuentos por monto</div>
-                    <div className="pd-disc-tiers">
-                      {pTiers.map((t, i) => {
-                        const reached = subtotal >= Number(t.threshold);
-                        return (
-                          <div key={i} className={`pd-tier ${reached ? "pd-tier--on" : ""}`}>
-                            {reached && <Check size={10} className="pd-tier__check" />}
-                            <span className="pd-tier__pct">{t.discount_pct}%</span>
-                            <span className="pd-tier__off">OFF</span>
-                            <span className="pd-tier__label">desde ${fmt(t.threshold)}</span>
-                          </div>
-                        );
-                      })}
+                  );
+                })}
+                {hasPrice && pTiers.map((t, i) => {
+                  const reached = subtotal >= Number(t.threshold);
+                  return (
+                    <div key={`p${i}`} className={`pd-disc-row${reached ? " pd-disc-row--on" : ""}`}>
+                      <span className="pd-disc-row__pct">{t.discount_pct}% OFF</span>
+                      <span className="pd-disc-row__label">
+                        {reached && <Check size={11} />} desde ${fmt(t.threshold)}
+                      </span>
                     </div>
-                  </div>
-                )}
+                  );
+                })}
+                {cartQty > 0 && hasQty && (() => {
+                  const next = qTiers.find(t => Number(t.threshold) > cartQty);
+                  return next ? (
+                    <p className="pd-disc-hint">
+                      <Zap size={11} /> Agregá <strong>{Number(next.threshold) - cartQty}</strong> más para {next.discount_pct}% OFF
+                    </p>
+                  ) : null;
+                })()}
               </div>
-            )}
-
-            {/* Description */}
-            {desc && (
-              <DescriptionBlock desc={desc} style={tc.product_desc_style || 'full'} />
             )}
 
             {/* Color selector */}
@@ -365,6 +342,13 @@ export default function ProductPage() {
                 </button>
               )}
             </div>
+
+            {/* Description — below cart controls */}
+            {desc && (
+              <div className="product-details__desc-wrap">
+                <DescriptionBlock desc={desc} style={tc.product_desc_style || 'full'} />
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -410,7 +394,6 @@ export default function ProductPage() {
         </section>
       )}
 
-      <Footer />
-    </div>
+    </LayoutShell>
   );
 }

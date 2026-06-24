@@ -1,0 +1,290 @@
+/* ── Amazonas Layout ───────────────────────────────────────────
+   Inspirado en Tiendanube "Amazonas": marketplace amplio
+   Top bar amarilla, logo izq grande, barra de búsqueda central,
+   botones con texto, secciones por categoría con divisores
+   ─────────────────────────────────────────────────────────── */
+
+.al-root { min-height: 100vh; background: var(--store-bg, #fff); color: var(--store-text, #111); }
+
+/* ── Top bar ───────────────────────────────────────────────── */
+.al-topbar {
+  background: var(--promo-custom-bg, #f5c518);
+  padding: 6px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .78rem;
+  color: var(--promo-custom-text, #111);
+}
+.al-topbar__socials { display: flex; gap: 14px; align-items: center; }
+.al-topbar__social { color: var(--promo-custom-text, #333); display: flex; align-items: center; opacity: .8; }
+.al-topbar__social:hover { opacity: 1; }
+.al-topbar__tagline { font-size: .78rem; font-weight: 500; color: var(--promo-custom-text, #444); }
+
+/* ── Main navbar ───────────────────────────────────────────── */
+.al-navbar {
+  background: var(--navbar-custom-bg, #1a1a1a);
+  height: 68px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.al-navbar__brand {
+  background: none; border: none; cursor: pointer;
+  flex-shrink: 0; padding: 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.al-navbar__logo { max-height: 36px; max-width: 140px; object-fit: contain; }
+.al-navbar__brand-name {
+  font-size: 1.55rem; font-weight: 800;
+  color: var(--navbar-custom-text, #fff); letter-spacing: -.01em;
+  white-space: nowrap;
+}
+
+.al-navbar__search {
+  flex: 1;
+  display: flex;
+  background: #fff;
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 680px;
+}
+.al-navbar__search-input {
+  flex: 1; border: none; outline: none;
+  padding: 10px 16px; font-size: .92rem; color: #111; background: #fff;
+}
+.al-navbar__search-input::placeholder { color: #aaa; }
+.al-navbar__search-btn {
+  background: var(--promo-custom-bg, #f5c518); border: none; cursor: pointer;
+  padding: 0 18px; display: flex; align-items: center;
+  color: var(--promo-custom-text, #111); font-weight: 700; transition: filter .15s;
+}
+.al-navbar__search-btn:hover { filter: brightness(.9); }
+
+.al-navbar__actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.al-navbar__action {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 4px 10px;
+  background: none; border: none; cursor: pointer; color: var(--navbar-custom-text, rgba(255,255,255,.8));
+  border-radius: 4px; transition: background .15s;
+  position: relative;
+}
+.al-navbar__action:hover { background: rgba(255,255,255,.1); color: #fff; }
+.al-navbar__action-icon { font-size: 0; display: flex; }
+.al-navbar__action-text { font-size: .72rem; font-weight: 500; white-space: nowrap; }
+.al-navbar__cart-badge {
+  position: absolute; top: -2px; right: 6px;
+  background: #f5c518; color: #111;
+  font-size: .6rem; font-weight: 800;
+  min-width: 17px; height: 17px;
+  border-radius: 99px; display: flex; align-items: center; justify-content: center; padding: 0 3px;
+}
+
+/* ── Category bar ──────────────────────────────────────────── */
+.al-catbar {
+  background: var(--catbar-bg, #2a2a2a);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 40px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.al-catbar::-webkit-scrollbar { display: none; }
+.al-catbar__btn {
+  background: none; border: none;
+  color: rgba(255,255,255,.72);
+  font-size: .8rem; font-weight: 400;
+  cursor: pointer; padding: 0 16px;
+  height: 100%; white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.al-catbar__btn:hover { color: #fff; }
+.al-catbar__btn--active { color: #fff; border-bottom-color: #f5c518; }
+
+/* ── Hero ──────────────────────────────────────────────────── */
+.al-hero {
+  position: relative;
+  height: 48vh;
+  min-height: 280px;
+  overflow: hidden;
+  background: #111;
+}
+.al-hero__img { width: 100%; height: 100%; object-fit: cover; }
+.al-hero__overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to right, rgba(0,0,0,.45), transparent 60%);
+}
+.al-hero__content {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  justify-content: center; padding: 0 48px; color: #fff;
+}
+.al-hero__title {
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  font-weight: 800; line-height: 1.1; margin-bottom: 16px;
+}
+.al-hero__cta {
+  width: fit-content;
+  background: #f5c518; border: none; color: #111;
+  padding: 12px 32px; font-size: .88rem; font-weight: 700;
+  cursor: pointer; border-radius: 4px; transition: filter .15s;
+}
+.al-hero__cta:hover { filter: brightness(.9); }
+
+/* ── Main container ────────────────────────────────────────── */
+.al-main { max-width: 1380px; margin: 0 auto; padding: 0 24px; }
+
+/* ── Section dividers (homepage) ───────────────────────────── */
+.al-section { margin-top: 36px; margin-bottom: 12px; }
+.al-section__divider {
+  display: flex; align-items: center; gap: 16px;
+  border-bottom: 2px solid #eee; padding-bottom: 12px; margin-bottom: 20px;
+}
+.al-section__title { font-size: 1.1rem; font-weight: 700; color: var(--store-text, #111); }
+.al-section__see-all {
+  margin-left: auto; font-size: .82rem; color: var(--brand, #111);
+  background: none; border: none; cursor: pointer; font-weight: 600;
+}
+.al-section__see-all:hover { text-decoration: underline; }
+
+/* ── Product grid ──────────────────────────────────────────── */
+.al-grid { display: grid; gap: var(--products-gap, 16px); }
+.al-grid--4 { grid-template-columns: repeat(var(--products-cols, 4), 1fr); }
+.al-grid--3 { grid-template-columns: repeat(3, 1fr); }
+.al-grid--2 { grid-template-columns: repeat(2, 1fr); }
+
+/* ── Amazonas card style: generous padding, square, flat ──── */
+html[data-tone="dark"] { --al-card-bg: var(--surface); --al-img-bg: rgba(255,255,255,.06); }
+.al-root .pcard {
+  background: var(--al-card-bg, #fff) !important;
+  border: var(--pcard-border, 1px solid #e8e8e8) !important;
+  border-radius: 6px !important;
+  box-shadow: var(--pcard-shadow, none) !important;
+}
+.al-root .pcard:hover { box-shadow: var(--pcard-shadow-hover, 0 4px 16px rgba(0,0,0,.1)) !important; transform: none !important; }
+.al-root .pcard__img-wrap { aspect-ratio: 1; background: var(--al-img-bg, #f9f9f9) !important; border-radius: 6px 6px 0 0 !important; padding: 8px !important; }
+.al-root .pcard__img { object-fit: contain !important; padding: 0 !important; }
+.al-root .pcard__body { padding: 14px 16px 18px !important; }
+.al-root .pcard__name { font-size: .84rem !important; font-weight: 400 !important; line-height: 1.4 !important; color: #111 !important; }
+.al-root .pcard__price { font-size: 1.2rem !important; font-weight: 700 !important; color: var(--card-price-color, var(--brand, #0a8a00)) !important; }
+.al-root .pcard__price-orig { font-size: .82rem !important; color: #666 !important; }
+
+/* No hover quick-add for Amazonas — clicking navigates to product */
+.al-root .pcard__quick-add,
+.al-root .pcard__qty-overlay { display: none !important; }
+
+/* ── Category page layout ──────────────────────────────────── */
+.al-cat-page { display: flex; gap: 28px; padding: 24px 0 48px; }
+.al-sidebar { flex: 0 0 200px; }
+.al-sidebar__title { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #888; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+.al-sidebar-block { margin-bottom: 24px; }
+.al-sidebar-label { font-size: .85rem; font-weight: 700; color: #111; margin-bottom: 10px; text-transform: uppercase; font-size: .72rem; letter-spacing: .05em; }
+.al-sidebar-price-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.al-sidebar-price-input {
+  flex: 1; width: 0; padding: 8px 10px; border: 1px solid #ddd;
+  border-radius: 4px; font-size: .82rem; background: #fff; outline: none;
+}
+.al-sidebar-price-input:focus { border-color: #f5c518; outline: 2px solid #f5c51888; }
+.al-sidebar-apply {
+  width: 36px; height: 36px; flex-shrink: 0;
+  background: #1a1a1a; color: #fff; border: none; cursor: pointer;
+  border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .9rem; transition: opacity .15s;
+}
+.al-sidebar-apply:hover { opacity: .75; }
+
+.al-cat-content { flex: 1; min-width: 0; }
+.al-cat-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.al-breadcrumb { font-size: .78rem; color: #888; margin-bottom: 6px; }
+.al-breadcrumb span { cursor: pointer; }
+.al-breadcrumb span:hover { color: var(--store-text, #111); }
+.al-cat-title { font-size: 1.6rem; font-weight: 700; color: var(--store-text, #111); }
+.al-cat-sort { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: #555; }
+.al-cat-sort select {
+  padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px;
+  font-size: .84rem; background: #fff; cursor: pointer;
+}
+
+/* ── Footer ────────────────────────────────────────────────── */
+.al-footer {
+  background: #1a1a1a; color: rgba(255,255,255,.55);
+  padding: 40px 24px 28px; margin-top: 48px;
+}
+.al-footer__inner { max-width: 1380px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 24px; }
+.al-footer__brand-name { font-size: 1.2rem; font-weight: 800; color: #fff; margin-bottom: 8px; }
+.al-footer__tagline { font-size: .8rem; margin-bottom: 12px; }
+.al-footer__socials { display: flex; gap: 14px; }
+.al-footer__social { color: rgba(255,255,255,.65); text-decoration: none; display: flex; align-items: center; gap: 5px; font-size: .8rem; }
+.al-footer__social:hover { color: #fff; }
+.al-footer__powered { font-size: .72rem; opacity: .3; margin-top: 24px; text-align: center; max-width: 1380px; margin-left: auto; margin-right: auto; }
+.al-footer__powered a { color: inherit; }
+
+/* ── WA fab ────────────────────────────────────────────────── */
+.al-wa-fab {
+  position: fixed; bottom: 24px; right: 24px;
+  background: #25d366; color: #fff; border-radius: 50%;
+  width: 52px; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,.25); z-index: 999; text-decoration: none;
+}
+
+/* ── Promo bar ─────────────────────────────────────────────── */
+.al-promobar {
+  background: var(--brand, #0a8a00);
+  color: #fff;
+  text-align: center;
+  padding: 9px 16px;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+
+/* ── Product detail page ───────────────────────────────────── */
+.al-root .product-gallery__main {
+  border-radius: 6px !important;
+  background: var(--al-img-bg, #f9f9f9) !important;
+}
+.al-root .product-gallery__img {
+  object-fit: contain !important;
+  padding: 4% !important;
+}
+.al-root .product-gallery__thumb {
+  border-radius: 4px !important;
+  background: var(--al-img-bg, #f9f9f9);
+}
+.al-root .product-details__price {
+  color: var(--brand, #0a8a00) !important;
+}
+.al-root .breadcrumb__back { color: var(--brand, #0a8a00); }
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 1000px) { .al-grid--4 { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 760px) {
+  .al-grid--4, .al-grid--3 { grid-template-columns: repeat(2, 1fr); }
+  .al-cat-page { flex-direction: column; }
+  .al-sidebar { flex: none; }
+  .al-navbar__actions { display: none; }
+  .al-navbar__search { max-width: none; }
+}
+@media (max-width: 480px) {
+  .al-navbar { padding: 0 12px; gap: 10px; }
+  .al-topbar { display: none; }
+  .al-hero { height: 36vh; }
+  .al-main { padding: 0 12px; }
+}
+@media (max-width: 380px) {
+  .al-grid--4, .al-grid--3 { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  .al-root .product-page { padding-left: 14px !important; padding-right: 14px !important; }
+}
