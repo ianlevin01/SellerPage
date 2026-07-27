@@ -105,6 +105,29 @@ export default function ComboPage() {
           <div className="product-details">
             <h1 className="product-details__name">{combo.name}</h1>
 
+            {reviews.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ display: "inline-flex", gap: 2 }}>
+                  {[1,2,3,4,5].map(i => (
+                    <Star key={i} size={15}
+                      fill={i <= Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) ? "#f59e0b" : "none"}
+                      stroke={i <= Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) ? "#f59e0b" : "#d1d5db"} />
+                  ))}
+                </span>
+                <span style={{ fontSize: ".8125rem", color: "var(--store-text-muted, #6b7280)" }}>
+                  ({reviews.length})
+                </span>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                    fontSize: ".8125rem", color: "var(--brand)", textDecoration: "underline" }}
+                  onClick={() => reviewsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                >
+                  ver reseñas
+                </button>
+              </div>
+            )}
+
             {combo.free_shipping && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, color: "var(--brand)", fontWeight: 600, fontSize: ".875rem" }}>
                 <Truck size={15} /> Envío gratis
